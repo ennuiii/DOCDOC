@@ -71,6 +71,8 @@ const Appointments = () => {
     notes: '',
     meetingType: 'in-person',
   });
+  
+  const [processingAppointment, setProcessingAppointment] = useState(null);
 
   // Quick date filter functions
   const setQuickDateFilter = (filter) => {
@@ -444,6 +446,39 @@ const Appointments = () => {
     }
   );
 
+  // Confirm appointment mutation  
+  const confirmMutation = useMutation(
+    async (appointmentId) => {
+      setProcessingAppointment(appointmentId);
+      
+      const { error } = await supabase
+        .from('appointments')
+        .update({ 
+          status: 'confirmed',
+          confirmed_by_id: user.id,
+          confirmed_at: new Date().toISOString()
+        })
+        .eq('id', appointmentId);
+      
+      if (error) throw error;
+      
+      return appointmentId;
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries('appointments');
+        enqueueSnackbar('Appointment confirmed successfully!', { variant: 'success' });
+        setProcessingAppointment(null);
+      },
+      onError: (error) => {
+        enqueueSnackbar(error.message || 'Failed to confirm appointment', {
+          variant: 'error',
+        });
+        setProcessingAppointment(null);
+      },
+    }
+  );
+
   const handleOpenBookingDialog = (timeslot) => {
     setSelectedTimeslot(timeslot);
     setOpenBookingDialog(true);
@@ -487,6 +522,10 @@ const Appointments = () => {
     if (reason) {
       cancelMutation.mutate({ id: appointmentId, reason });
     }
+  };
+
+  const handleConfirmAppointment = (appointmentId) => {
+    confirmMutation.mutate(appointmentId);
   };
 
   const getMeetingIcon = (type) => {
@@ -778,10 +817,21 @@ const Appointments = () => {
                       <IconButton onClick={() => handleOpenDetailsDialog(appointment)}>
                         <InfoIcon />
                       </IconButton>
+                      {appointment.status === 'scheduled' && user?.role === 'doctor' && (
+                        <IconButton
+                          color="success"
+                          onClick={() => handleConfirmAppointment(appointment.id)}
+                          disabled={processingAppointment === appointment.id}
+                          title="Confirm Appointment"
+                        >
+                          <ConfirmIcon />
+                        </IconButton>
+                      )}
                       {appointment.status === 'scheduled' && (
                         <IconButton
                           color="error"
                           onClick={() => handleCancelAppointment(appointment.id)}
+                          title="Cancel Appointment"
                         >
                           <CancelIcon />
                         </IconButton>
@@ -989,6 +1039,15 @@ const Appointments = () => {
                 </>
               )}
               
+              {selectedAppointment.status === 'confirmed' && selectedAppointment.confirmed_at && (
+                <>
+                  <Typography variant="subtitle2" gutterBottom>Confirmed</Typography>
+                  <Typography variant="body1" paragraph color="success.main">
+                    Confirmed on {dayjs(selectedAppointment.confirmed_at).format('MMMM D, YYYY [at] h:mm A')}
+                  </Typography>
+                </>
+              )}
+              
               {selectedAppointment.cancellation_reason && (
                 <>
                   <Typography variant="subtitle2" gutterBottom>Cancellation Reason</Typography>
@@ -1001,6 +1060,36 @@ const Appointments = () => {
           )}
         </DialogContent>
         <DialogActions>
+          {selectedAppointment?.status === 'scheduled' && user?.role === 'doctor' && (
+            <>
+              <Button 
+                onClick={() => {
+                  handleConfirmAppointment(selectedAppointment.id);
+                  handleCloseDetailsDialog();
+                }}
+                variant="contained"
+                color="success"
+                startIcon={<ConfirmIcon />}
+                disabled={processingAppointment === selectedAppointment.id}
+              >
+                Confirm
+              </Button>
+              <Button 
+                onClick={() => {
+                  const reason = window.prompt('Please provide a reason for cancellation:');
+                  if (reason) {
+                    cancelMutation.mutate({ id: selectedAppointment.id, reason });
+                    handleCloseDetailsDialog();
+                  }
+                }}
+                variant="outlined"
+                color="error"
+                startIcon={<CancelIcon />}
+              >
+                Cancel
+              </Button>
+            </>
+          )}
           <Button onClick={handleCloseDetailsDialog}>Close</Button>
         </DialogActions>
       </Dialog>
