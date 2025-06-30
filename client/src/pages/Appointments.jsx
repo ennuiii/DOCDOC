@@ -455,7 +455,6 @@ const Appointments = () => {
         .from('appointments')
         .update({ 
           status: 'confirmed',
-          confirmed_by_id: user.id,
           confirmed_at: new Date().toISOString()
         })
         .eq('id', appointmentId);
@@ -467,6 +466,10 @@ const Appointments = () => {
     {
       onSuccess: () => {
         queryClient.invalidateQueries('appointments');
+        // Also invalidate dashboard queries so they update immediately
+        queryClient.invalidateQueries('dashboard-stats');
+        queryClient.invalidateQueries(['today-appointments']);
+        queryClient.invalidateQueries('upcoming-appointments');
         enqueueSnackbar('Appointment confirmed successfully!', { variant: 'success' });
         setProcessingAppointment(null);
       },

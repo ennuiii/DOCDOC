@@ -40,6 +40,7 @@ import dayjs from 'dayjs';
 import { useQuery } from 'react-query';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useRealtimeSubscriptions } from '../hooks/useRealtimeSubscriptions';
 import { supabase } from '../lib/supabase';
 import {
   PieChart,
@@ -64,6 +65,30 @@ const Dashboard = () => {
   const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState(dayjs());
   const [processingAppointment, setProcessingAppointment] = useState(null);
+  
+  // Initialize real-time subscriptions
+  const { isConnected } = useRealtimeSubscriptions();
+  
+  // Listen for appointment updates to refresh dashboard data
+  useEffect(() => {
+    const handleAppointmentChange = () => {
+      // Invalidate all dashboard-related queries when appointments change
+      queryClient.invalidateQueries('dashboard-stats');
+      queryClient.invalidateQueries(['today-appointments']);
+      queryClient.invalidateQueries('upcoming-appointments');
+    };
+
+    // Listen for custom events from real-time subscriptions
+    window.addEventListener('appointmentUpdated', handleAppointmentChange);
+    window.addEventListener('appointmentCreated', handleAppointmentChange);
+    window.addEventListener('appointmentDeleted', handleAppointmentChange);
+
+    return () => {
+      window.removeEventListener('appointmentUpdated', handleAppointmentChange);
+      window.removeEventListener('appointmentCreated', handleAppointmentChange);
+      window.removeEventListener('appointmentDeleted', handleAppointmentChange);
+    };
+  }, [queryClient]);
 
   // Fetch dashboard statistics
   const { data: stats, isLoading: loadingStats } = useQuery(
@@ -353,11 +378,16 @@ const Dashboard = () => {
     try {
       await supabase
         .from('appointments')
-        .update({ status: 'confirmed' })
+        .update({ 
+          status: 'confirmed',
+          confirmed_at: new Date().toISOString()
+        })
         .eq('id', appointmentId);
       enqueueSnackbar('Appointment confirmed successfully', { variant: 'success' });
-      // Refetch data
+      // Refetch all related data
+      queryClient.invalidateQueries('dashboard-stats');
       queryClient.invalidateQueries(['today-appointments']);
+      queryClient.invalidateQueries('upcoming-appointments');
       queryClient.invalidateQueries(['pending-actions']);
     } catch (error) {
       enqueueSnackbar(error.message || 'Failed to confirm appointment', { variant: 'error' });
@@ -372,12 +402,17 @@ const Dashboard = () => {
     try {
       await supabase
         .from('appointments')
-        .update({ status: 'completed' })
+        .update({ 
+          status: 'completed',
+          completed_at: new Date().toISOString()
+        })
         .eq('id', appointmentId);
       enqueueSnackbar('Appointment marked as completed', { variant: 'success' });
-      // Refetch data
+      // Refetch all related data
+      queryClient.invalidateQueries('dashboard-stats');
       queryClient.invalidateQueries(['today-appointments']);
-      queryClient.invalidateQueries(['dashboard-stats']);
+      queryClient.invalidateQueries('upcoming-appointments');
+      queryClient.invalidateQueries(['pending-actions']);
     } catch (error) {
       enqueueSnackbar(error.message || 'Failed to complete appointment', { variant: 'error' });
     } finally {
