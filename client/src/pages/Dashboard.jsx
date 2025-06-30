@@ -40,7 +40,7 @@ import dayjs from 'dayjs';
 import { useQuery } from 'react-query';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import api from '../services/api';
+import { supabase } from '../lib/supabase';
 import {
   PieChart,
   Pie,
@@ -75,40 +75,67 @@ const Dashboard = () => {
       const startOfMonth = dayjs().startOf('month').format('YYYY-MM-DD');
       const endOfMonth = dayjs().endOf('month').format('YYYY-MM-DD');
 
-      const [todayAppointments, weekAppointments, todayTimeslots, monthStats] = await Promise.all([
-        api.get('/appointments', {
-          params: {
-            startDate: today,
-            endDate: today,
-            status: 'scheduled,confirmed',
-          },
-        }),
-        api.get('/appointments', {
-          params: {
-            startDate: startOfWeek,
-            endDate: endOfWeek,
-          },
-        }),
-        api.get('/timeslots', {
-          params: {
-            date: today,
-          },
-        }),
-        api.get('/appointments/stats', {
-          params: {
-            startDate: startOfMonth,
-            endDate: endOfMonth,
-          },
-        }),
-      ]);
+      try {
+        // Get today's appointments
+        const { data: todayAppts } = await supabase
+          .from('appointments')
+          .select(`
+            *,
+            timeslot:timeslots!timeslot_id(date, start_time, end_time)
+          `)
+          .eq('timeslots.date', today)
+          .in('status', ['scheduled', 'confirmed']);
 
-      return {
-        todayCount: todayAppointments.data.appointments.length,
-        weekCount: weekAppointments.data.appointments.length,
-        availableSlots: todayTimeslots.data.timeslots.filter(s => s.status === 'available').length,
-        completedThisWeek: weekAppointments.data.appointments.filter(a => a.status === 'completed').length,
-        monthStats: monthStats.data.stats,
-      };
+        // Get week's appointments
+        const { data: weekAppts } = await supabase
+          .from('appointments')
+          .select(`
+            *,
+            timeslot:timeslots!timeslot_id(date, start_time, end_time)
+          `)
+          .gte('timeslots.date', startOfWeek)
+          .lte('timeslots.date', endOfWeek);
+
+        // Get today's available timeslots
+        const { data: todaySlots } = await supabase
+          .from('timeslots')
+          .select('*')
+          .eq('date', today)
+          .eq('status', 'available');
+
+        // Get month stats
+        const { data: monthAppts } = await supabase
+          .from('appointments')
+          .select(`
+            status, 
+            meeting_type,
+            timeslot:timeslots!timeslot_id(date)
+          `)
+          .gte('timeslots.date', startOfMonth)
+          .lte('timeslots.date', endOfMonth);
+
+        // Calculate stats
+        const monthStats = {
+          byStatus: {},
+          byMeetingType: {}
+        };
+
+        (monthAppts || []).forEach(apt => {
+          monthStats.byStatus[apt.status] = (monthStats.byStatus[apt.status] || 0) + 1;
+          monthStats.byMeetingType[apt.meeting_type] = (monthStats.byMeetingType[apt.meeting_type] || 0) + 1;
+        });
+
+        return {
+          todayCount: (todayAppts || []).length,
+          weekCount: (weekAppts || []).length,
+          availableSlots: (todaySlots || []).length,
+          completedThisWeek: (weekAppts || []).filter(a => a.status === 'completed').length,
+          monthStats,
+        };
+      } catch (error) {
+        console.error('Dashboard stats query error:', error);
+        throw error;
+      }
     }
   );
 
@@ -116,14 +143,44 @@ const Dashboard = () => {
   const { data: todayAppointments, isLoading: loadingAppointments } = useQuery(
     ['today-appointments', selectedDate.format('YYYY-MM-DD')],
     async () => {
-      const response = await api.get('/appointments', {
-        params: {
-          startDate: selectedDate.format('YYYY-MM-DD'),
-          endDate: selectedDate.format('YYYY-MM-DD'),
-          status: 'scheduled,confirmed',
-        },
-      });
-      return response.data.appointments;
+      try {
+        const { data, error } = await supabase
+          .from('appointments')
+          .select(`
+            *,
+            timeslot:timeslots!timeslot_id(id, date, start_time, end_time),
+            doctor:users!doctor_id(id, first_name, last_name, email, specialization),
+            pharma_rep:users!pharma_rep_id(id, first_name, last_name, email, company_name),
+            products:appointment_products(id, name, category, description)
+          `)
+          .eq('timeslots.date', selectedDate.format('YYYY-MM-DD'))
+          .in('status', ['scheduled', 'confirmed']);
+
+        if (error) throw error;
+
+        // Add computed full_name for display and sort by timeslot start_time
+        const appointmentsWithFullName = (data || []).map(apt => ({
+          ...apt,
+          doctor: apt.doctor ? {
+            ...apt.doctor,
+            full_name: `${apt.doctor.first_name || ''} ${apt.doctor.last_name || ''}`.trim() || apt.doctor.email
+          } : null,
+          pharma_rep: apt.pharma_rep ? {
+            ...apt.pharma_rep,
+            full_name: `${apt.pharma_rep.first_name || ''} ${apt.pharma_rep.last_name || ''}`.trim() || apt.pharma_rep.email
+          } : null
+        }));
+
+        // Sort by timeslot start_time
+        return appointmentsWithFullName.sort((a, b) => {
+          const timeA = a.timeslot?.start_time || '';
+          const timeB = b.timeslot?.start_time || '';
+          return timeA.localeCompare(timeB);
+        });
+      } catch (error) {
+        console.error('Today appointments query error:', error);
+        throw error;
+      }
     }
   );
 
@@ -131,14 +188,50 @@ const Dashboard = () => {
   const { data: upcomingAppointments } = useQuery(
     'upcoming-appointments',
     async () => {
-      const response = await api.get('/appointments', {
-        params: {
-          startDate: dayjs().format('YYYY-MM-DD'),
-          endDate: dayjs().add(7, 'day').format('YYYY-MM-DD'),
-          status: 'scheduled,confirmed',
-        },
-      });
-      return response.data.appointments;
+      try {
+        const { data, error } = await supabase
+          .from('appointments')
+          .select(`
+            *,
+            timeslot:timeslots!timeslot_id(id, date, start_time, end_time),
+            doctor:users!doctor_id(id, first_name, last_name, email, specialization),
+            pharma_rep:users!pharma_rep_id(id, first_name, last_name, email, company_name),
+            products:appointment_products(id, name, category, description)
+          `)
+          .gte('timeslots.date', dayjs().format('YYYY-MM-DD'))
+          .lte('timeslots.date', dayjs().add(7, 'day').format('YYYY-MM-DD'))
+          .in('status', ['scheduled', 'confirmed']);
+
+        if (error) throw error;
+
+        // Add computed full_name for display
+        const appointmentsWithFullName = (data || []).map(apt => ({
+          ...apt,
+          doctor: apt.doctor ? {
+            ...apt.doctor,
+            full_name: `${apt.doctor.first_name || ''} ${apt.doctor.last_name || ''}`.trim() || apt.doctor.email
+          } : null,
+          pharma_rep: apt.pharma_rep ? {
+            ...apt.pharma_rep,
+            full_name: `${apt.pharma_rep.first_name || ''} ${apt.pharma_rep.last_name || ''}`.trim() || apt.pharma_rep.email
+          } : null
+        }));
+
+        // Sort by timeslot date first, then by start_time
+        return appointmentsWithFullName.sort((a, b) => {
+          const dateA = a.timeslot?.date || '';
+          const dateB = b.timeslot?.date || '';
+          const dateCompare = dateA.localeCompare(dateB);
+          if (dateCompare !== 0) return dateCompare;
+          
+          const timeA = a.timeslot?.start_time || '';
+          const timeB = b.timeslot?.start_time || '';
+          return timeA.localeCompare(timeB);
+        });
+      } catch (error) {
+        console.error('Upcoming appointments query error:', error);
+        throw error;
+      }
     }
   );
 
@@ -146,14 +239,50 @@ const Dashboard = () => {
   const { data: pendingActions } = useQuery(
     'pending-actions',
     async () => {
-      const response = await api.get('/appointments', {
-        params: {
-          status: 'scheduled',
-          startDate: dayjs().format('YYYY-MM-DD'),
-          endDate: dayjs().add(2, 'day').format('YYYY-MM-DD'),
-        },
-      });
-      return response.data.appointments.filter(apt => apt.status === 'scheduled');
+      try {
+        const { data, error } = await supabase
+          .from('appointments')
+          .select(`
+            *,
+            timeslot:timeslots!timeslot_id(id, date, start_time, end_time),
+            doctor:users!doctor_id(id, first_name, last_name, email, specialization),
+            pharma_rep:users!pharma_rep_id(id, first_name, last_name, email, company_name),
+            products:appointment_products(id, name, category, description)
+          `)
+          .eq('status', 'scheduled')
+          .gte('timeslots.date', dayjs().format('YYYY-MM-DD'))
+          .lte('timeslots.date', dayjs().add(2, 'day').format('YYYY-MM-DD'));
+
+        if (error) throw error;
+
+        // Add computed full_name for display
+        const appointmentsWithFullName = (data || []).map(apt => ({
+          ...apt,
+          doctor: apt.doctor ? {
+            ...apt.doctor,
+            full_name: `${apt.doctor.first_name || ''} ${apt.doctor.last_name || ''}`.trim() || apt.doctor.email
+          } : null,
+          pharma_rep: apt.pharma_rep ? {
+            ...apt.pharma_rep,
+            full_name: `${apt.pharma_rep.first_name || ''} ${apt.pharma_rep.last_name || ''}`.trim() || apt.pharma_rep.email
+          } : null
+        }));
+
+        // Sort by timeslot date first, then by start_time
+        return appointmentsWithFullName.sort((a, b) => {
+          const dateA = a.timeslot?.date || '';
+          const dateB = b.timeslot?.date || '';
+          const dateCompare = dateA.localeCompare(dateB);
+          if (dateCompare !== 0) return dateCompare;
+          
+          const timeA = a.timeslot?.start_time || '';
+          const timeB = b.timeslot?.start_time || '';
+          return timeA.localeCompare(timeB);
+        });
+      } catch (error) {
+        console.error('Pending actions query error:', error);
+        throw error;
+      }
     }
   );
 
@@ -222,13 +351,16 @@ const Dashboard = () => {
   const handleConfirmAppointment = async (appointmentId) => {
     setProcessingAppointment(appointmentId);
     try {
-      await api.post(`/appointments/${appointmentId}/confirm`);
+      await supabase
+        .from('appointments')
+        .update({ status: 'confirmed' })
+        .eq('id', appointmentId);
       enqueueSnackbar('Appointment confirmed successfully', { variant: 'success' });
       // Refetch data
       queryClient.invalidateQueries(['today-appointments']);
       queryClient.invalidateQueries(['pending-actions']);
     } catch (error) {
-      enqueueSnackbar(error.response?.data?.message || 'Failed to confirm appointment', { variant: 'error' });
+      enqueueSnackbar(error.message || 'Failed to confirm appointment', { variant: 'error' });
     } finally {
       setProcessingAppointment(null);
     }
@@ -238,13 +370,16 @@ const Dashboard = () => {
   const handleCompleteAppointment = async (appointmentId) => {
     setProcessingAppointment(appointmentId);
     try {
-      await api.post(`/appointments/${appointmentId}/complete`);
+      await supabase
+        .from('appointments')
+        .update({ status: 'completed' })
+        .eq('id', appointmentId);
       enqueueSnackbar('Appointment marked as completed', { variant: 'success' });
       // Refetch data
       queryClient.invalidateQueries(['today-appointments']);
       queryClient.invalidateQueries(['dashboard-stats']);
     } catch (error) {
-      enqueueSnackbar(error.response?.data?.message || 'Failed to complete appointment', { variant: 'error' });
+      enqueueSnackbar(error.message || 'Failed to complete appointment', { variant: 'error' });
     } finally {
       setProcessingAppointment(null);
     }
@@ -277,7 +412,7 @@ const Dashboard = () => {
             />
           )}
           <Typography variant="subtitle1" color="text.secondary">
-            Welcome back, Dr. {user?.profile?.lastName}
+            Welcome back, {user?.role === 'doctor' ? 'Dr.' : ''} {user?.first_name} {user?.last_name}
           </Typography>
         </Box>
       </Box>
@@ -400,7 +535,7 @@ const Dashboard = () => {
             ) : (
               <List>
                 {todayAppointments?.map((appointment, index) => (
-                  <Box key={appointment._id}>
+                  <Box key={appointment.id}>
                     <ListItem
                       secondaryAction={
                         <Box display="flex" alignItems="center" gap={1}>
@@ -410,20 +545,20 @@ const Dashboard = () => {
                               variant="outlined"
                               color="primary"
                               startIcon={<ConfirmIcon />}
-                              onClick={() => handleConfirmAppointment(appointment._id)}
-                              disabled={processingAppointment === appointment._id}
+                              onClick={() => handleConfirmAppointment(appointment.id)}
+                              disabled={processingAppointment === appointment.id}
                             >
                               Confirm
                             </Button>
                           )}
-                          {appointment.status === 'confirmed' && dayjs(`${appointment.timeslot.date} ${appointment.timeslot.endTime}`).isBefore(dayjs()) && (
+                          {appointment.status === 'confirmed' && appointment.timeslot && dayjs(appointment.timeslot.end_time).isBefore(dayjs()) && (
                             <Button
                               size="small"
                               variant="outlined"
                               color="success"
                               startIcon={<CompleteIcon />}
-                              onClick={() => handleCompleteAppointment(appointment._id)}
-                              disabled={processingAppointment === appointment._id}
+                              onClick={() => handleCompleteAppointment(appointment.id)}
+                              disabled={processingAppointment === appointment.id}
                             >
                               Complete
                             </Button>
@@ -443,40 +578,29 @@ const Dashboard = () => {
                       }
                     >
                       <ListItemAvatar>
-                        <Avatar sx={{ bgcolor: appointment.meetingType === 'virtual' ? 'info.main' : 'primary.light' }}>
+                        <Avatar sx={{ bgcolor: appointment.meeting_type === 'virtual' ? 'info.main' : 'primary.light' }}>
                           <ScheduleIcon />
                         </Avatar>
                       </ListItemAvatar>
                       <ListItemText
                         primary={
-                          <Box display="flex" alignItems="center" gap={1}>
-                            <Typography variant="subtitle1">
-                              {appointment.timeslot.startTime} - {appointment.timeslot.endTime}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              ({appointment.duration || 30} min)
-                            </Typography>
-                            <Chip
-                              label={appointment.meetingType}
-                              size="small"
-                              variant="outlined"
-                            />
-                          </Box>
+                          `${appointment.timeslot ? 
+                            `${appointment.timeslot.start_time} - ${appointment.timeslot.end_time}` :
+                            'Time: TBD'
+                          } (${appointment.duration || 30} min) - ${appointment.meeting_type}`
                         }
                         secondary={
-                          <Box>
-                            <Typography variant="body2">
-                              {appointment.pharmaRep.profile.firstName} {appointment.pharmaRep.profile.lastName} - {appointment.pharmaRep.profile.companyName}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              Purpose: {appointment.purpose}
-                            </Typography>
+                          <>
+                            {appointment.doctor?.full_name || 'Unknown Doctor'} - {appointment.pharma_rep?.full_name || 'Unknown Rep'}
+                            <br />
+                            Purpose: {appointment.purpose}
                             {appointment.products?.length > 0 && (
-                              <Typography variant="body2" color="text.secondary">
+                              <>
+                                <br />
                                 Products: {appointment.products.map(p => p.name).join(', ')}
-                              </Typography>
+                              </>
                             )}
-                          </Box>
+                          </>
                         }
                       />
                     </ListItem>
@@ -539,16 +663,19 @@ const Dashboard = () => {
               </Box>
               <List dense>
                 {pendingActions.slice(0, 3).map((appointment) => (
-                  <ListItem key={appointment._id}>
+                  <ListItem key={appointment.id}>
                     <ListItemText
-                      primary={`${dayjs(appointment.timeslot.date).format('MMM D')} at ${appointment.timeslot.startTime}`}
-                      secondary={`${appointment.pharmaRep.profile.companyName} - Needs confirmation`}
+                      primary={appointment.timeslot ? 
+                        `${dayjs(appointment.timeslot.date).format('MMM D')} at ${appointment.timeslot.start_time}` :
+                        'Time: TBD'
+                      }
+                      secondary={`${appointment.pharma_rep?.full_name || 'Unknown Rep'} - Needs confirmation`}
                     />
                     <Button
                       size="small"
                       variant="contained"
-                      onClick={() => handleConfirmAppointment(appointment._id)}
-                      disabled={processingAppointment === appointment._id}
+                      onClick={() => handleConfirmAppointment(appointment.id)}
+                      disabled={processingAppointment === appointment.id}
                     >
                       Confirm
                     </Button>
@@ -585,10 +712,13 @@ const Dashboard = () => {
             </Typography>
             <List dense>
               {upcomingAppointments?.slice(0, 5).map((appointment) => (
-                <ListItem key={appointment._id}>
+                <ListItem key={appointment.id}>
                   <ListItemText
-                    primary={`${dayjs(appointment.timeslot.date).format('MMM D')} at ${appointment.timeslot.startTime}`}
-                    secondary={`${appointment.pharmaRep.profile.companyName}`}
+                    primary={appointment.timeslot ? 
+                      `${dayjs(appointment.timeslot.date).format('MMM D')} at ${appointment.timeslot.start_time}` :
+                      'Time: TBD'
+                    }
+                    secondary={`${appointment.doctor?.full_name || 'Unknown Doctor'}`}
                   />
                 </ListItem>
               ))}
