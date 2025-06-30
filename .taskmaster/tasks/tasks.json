@@ -1,0 +1,1221 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Setup Project Repository",
+        "description": "Initialize the project repository with the necessary structure and tools.",
+        "details": "Create a Git repository and set up the project structure using Vite/CRA for the frontend and Express for the backend. Configure Docker for local development and cloud readiness. Ensure the repository includes a README with setup instructions.",
+        "testStrategy": "Verify that the repository can be cloned and the development environment can be set up without errors.",
+        "priority": "medium",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Initialize Git Repository",
+            "description": "Create a new Git repository for the project to manage version control.",
+            "dependencies": [],
+            "details": "Use Git commands to initialize a repository, create an initial commit, and set up a remote repository if necessary.\n<info added on 2025-06-29T18:38:21.270Z>\nGit repository initialized successfully. Created a comprehensive .gitignore file including patterns for Node.js, React, environment variables, and Render.com specific configurations.\n</info added on 2025-06-29T18:38:21.270Z>",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Set Up Frontend and Backend Structures",
+            "description": "Organize the project directory with separate folders for frontend and backend code.",
+            "dependencies": [
+              1
+            ],
+            "details": "Create a directory structure with folders for frontend and backend. Include basic files such as index.html for frontend and server.js for backend.\n<info added on 2025-06-29T18:43:12.093Z>\nSuccessfully set up frontend and backend structures:\n- Created monorepo structure with client and server directories\n- Set up package.json files for root, client, and server\n- Configured Vite for React frontend with Material-UI\n- Set up Express.js backend with MongoDB integration\n- Added Render.com deployment configuration (render.yaml)\n- Created comprehensive README with installation and deployment instructions\n</info added on 2025-06-29T18:43:12.093Z>",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Configure Docker",
+            "description": "Set up Docker to containerize the application for consistent development and deployment environments.",
+            "dependencies": [
+              2
+            ],
+            "details": "Write Dockerfiles for both frontend and backend services, and create a docker-compose.yml file to manage multi-container applications.\n<info added on 2025-06-29T18:44:25.539Z>\nDocker configuration completed:\n- Created main Dockerfile for production deployment with multi-stage build\n- Created docker-compose.yml for local development with MongoDB, backend, and frontend services\n- Created separate development Dockerfiles for hot-reloading\n- Added .dockerignore to optimize build context\n- Configured networking and volumes for development environment\n- Set up environment variables for Docker containers\n</info added on 2025-06-29T18:44:25.539Z>",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Write README",
+            "description": "Create a README file to document the project setup, usage, and contribution guidelines.",
+            "dependencies": [
+              1,
+              2,
+              3
+            ],
+            "details": "Include sections such as project description, installation instructions, usage, and contribution guidelines in the README.md file.",
+            "status": "done",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Implement User Authentication and Role Management",
+        "description": "Develop the user authentication system with JWT and role-based access control.",
+        "status": "done",
+        "dependencies": [
+          1
+        ],
+        "priority": "medium",
+        "details": "Use Node.js and Express to create a REST API for user registration, login, logout, and token refresh. Implement JWT for authentication with both access and refresh tokens. Define roles for doctors, pharma, and staff, and enforce role-based access control with a permissions system. Ensure secure password storage and validation using bcrypt. Implement comprehensive input validation and error handling middleware.",
+        "testStrategy": "Write unit tests for all authentication endpoints, including registration, login, logout, and token refresh. Verify role-based access control and permissions through integration tests. Test error handling and input validation thoroughly.",
+        "subtasks": [
+          {
+            "id": 6,
+            "title": "Implement Logout and Token Refresh",
+            "description": "Develop logout functionality and implement token refresh mechanism.",
+            "status": "done",
+            "dependencies": [
+              3
+            ],
+            "details": "Create endpoints for user logout and token refresh. Ensure tokens are invalidated upon logout and refresh tokens are used to obtain new access tokens.",
+            "testStrategy": "Test logout and token refresh endpoints to ensure tokens are correctly invalidated and refreshed."
+          },
+          {
+            "id": 7,
+            "title": "Add Middleware for Authentication and Authorization",
+            "description": "Create middleware to handle authentication and authorization for API routes.",
+            "status": "done",
+            "dependencies": [
+              4
+            ],
+            "details": "Develop middleware functions to check JWT validity and enforce role-based permissions on protected routes.",
+            "testStrategy": "Test middleware to ensure it correctly validates JWTs and enforces permissions based on user roles."
+          },
+          {
+            "id": 8,
+            "title": "Implement Error Handling and Input Validation",
+            "description": "Add comprehensive error handling and input validation for all authentication endpoints.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Implement error handling middleware to manage API errors gracefully. Add input validation to ensure all authentication requests are properly formatted and secure.",
+            "testStrategy": "Test error handling and input validation to ensure robustness and security of the authentication system."
+          },
+          {
+            "id": 1,
+            "title": "Implement User Registration",
+            "description": "Create a user registration system that allows new users to sign up by providing necessary details.",
+            "dependencies": [],
+            "details": "Design a registration form, validate user inputs, and store user data securely in the database.\n<info added on 2025-06-29T18:51:06.920Z>\nUser registration system implemented:\n- Created User model with role-based fields (doctor, pharma, staff)\n- Added password hashing with bcrypt\n- Implemented email validation\n- Added role-specific field validation\n- Created registration endpoint with comprehensive validation\n- Includes support for doctor specialization, pharma company info, and staff assignment\n</info added on 2025-06-29T18:51:06.920Z>",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement User Login",
+            "description": "Develop a login system that authenticates users based on their credentials.",
+            "dependencies": [
+              1
+            ],
+            "details": "Create a login form, validate credentials against stored data, and handle login sessions.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Implement JWT Authentication",
+            "description": "Set up JWT for secure user authentication and session management.",
+            "dependencies": [
+              2
+            ],
+            "details": "Generate JWT tokens upon successful login, validate tokens for protected routes, and handle token expiration.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Define User Roles",
+            "description": "Establish a role-based access control system to manage user permissions.",
+            "dependencies": [
+              1
+            ],
+            "details": "Identify different user roles, assign roles during registration, and enforce role-based access control.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Implement Secure Password Handling",
+            "description": "Ensure secure storage and handling of user passwords.",
+            "dependencies": [
+              1
+            ],
+            "details": "Use hashing algorithms like bcrypt to hash passwords before storing them in the database and verify hashed passwords during login.",
+            "status": "done",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Develop Doctor Timeslot Management",
+        "description": "Create functionality for doctors to manage their available appointment timeslots.",
+        "details": "Implement a calendar interface using a React calendar library. Allow doctors to create, edit, and delete timeslots. Store timeslot data in PostgreSQL or MongoDB.",
+        "testStrategy": "Test the creation, editing, and deletion of timeslots through the UI and verify data persistence in the database.",
+        "priority": "medium",
+        "dependencies": [
+          2
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "UI Design",
+            "description": "Design the user interface for the application, focusing on user experience and accessibility.",
+            "dependencies": [],
+            "details": "Create wireframes and mockups for the application interface, ensuring it is intuitive and accessible.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Timeslot CRUD Operations",
+            "description": "Implement Create, Read, Update, and Delete operations for timeslots.",
+            "dependencies": [
+              1
+            ],
+            "details": "Develop the backend logic and API endpoints to manage timeslot data, ensuring data validation and error handling.\n<info added on 2025-06-29T19:02:01.910Z>\nCompleted CRUD operations implementation:\n- Created Timeslot model with full schema including recurring support\n- Implemented timeslotController with all CRUD operations\n- Added validation schemas using express-validator\n- Updated routes with proper middleware chain\n- Created React Timeslots page with Material-UI\n- Implemented create/edit/delete functionality\n- Added recurring timeslot support\n- Integrated with React Query for data fetching\n- Added proper error handling and notifications\n</info added on 2025-06-29T19:02:01.910Z>",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Database Integration",
+            "description": "Integrate the application with a database to store and retrieve timeslot data.",
+            "dependencies": [
+              2
+            ],
+            "details": "Set up the database schema and establish connections between the application and the database, ensuring data integrity.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Testing",
+            "description": "Conduct testing to ensure all components of the application function correctly.",
+            "dependencies": [
+              3
+            ],
+            "details": "Perform unit, integration, and user acceptance testing to identify and fix any issues in the application.",
+            "status": "done",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Build Pharma Appointment Booking System",
+        "description": "Enable pharma users to view and book available timeslots for appointments with doctors.",
+        "details": "Develop a booking interface for pharma users to view available timeslots and book them. Implement backend logic to handle booking requests and update timeslot availability.",
+        "testStrategy": "Test booking functionality by simulating pharma user actions and ensure timeslot availability updates correctly.",
+        "priority": "medium",
+        "dependencies": [
+          3
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design Booking Interface",
+            "description": "Create a user-friendly interface for booking appointments.",
+            "dependencies": [],
+            "details": "Design the layout and user flow for the booking interface, ensuring it is intuitive and easy to use.\n<info added on 2025-06-29T19:24:27.165Z>\nCompleted booking interface design:\n- Created comprehensive Appointments page with tabbed interface\n- Book Appointment tab for pharma users with:\n  - Date picker and specialization filter\n  - Grid view of available timeslots with doctor info\n  - Booking dialog with purpose, meeting type, and notes\n- Upcoming/Past appointments tabs for both roles\n- Appointment details dialog\n- Cancel appointment functionality\n- Integrated with React Query for data management\n</info added on 2025-06-29T19:24:27.165Z>",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Develop Backend Logic for Booking",
+            "description": "Implement the server-side logic to handle booking requests.",
+            "dependencies": [
+              1
+            ],
+            "details": "Create APIs and database interactions necessary to process and store booking information.\n<info added on 2025-06-29T19:24:36.960Z>\nCompleted backend logic implementation:\n- Created Appointment model with full schema\n- Implemented appointment controller with all CRUD operations\n- Added booking logic with timeslot validation\n- Implemented cancel, confirm, complete operations\n- Added getAvailableTimeslots endpoint for pharma view\n- Created validation schemas for all endpoints\n- Updated routes with proper middleware chain\n- Automatic timeslot status updates on booking/cancellation\n</info added on 2025-06-29T19:24:36.960Z>",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Implement Timeslot Update Mechanism",
+            "description": "Develop a system to update available timeslots based on bookings.",
+            "dependencies": [
+              2
+            ],
+            "details": "Ensure that timeslots are accurately updated in real-time as bookings are made or canceled.\n<info added on 2025-06-29T19:24:46.262Z>\nCompleted timeslot update mechanism:\n- Pre-save middleware in Appointment model updates timeslot on booking\n- Cancel method in Appointment model restores timeslot availability\n- Timeslot status changes from 'available' to 'booked' automatically\n- currentBookings counter updated appropriately\n- Validation prevents double-booking\n- Atomic operations ensure data consistency\n</info added on 2025-06-29T19:24:46.262Z>",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Test Booking System",
+            "description": "Conduct thorough testing of the booking interface and backend logic.",
+            "dependencies": [
+              1,
+              2,
+              3
+            ],
+            "details": "Perform unit, integration, and user acceptance testing to ensure the booking system functions correctly.",
+            "status": "done",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Create Appointment Management Dashboard for Doctors",
+        "description": "Develop a dashboard for doctors to manage all appointments and staff schedules.",
+        "status": "done",
+        "dependencies": [
+          4
+        ],
+        "priority": "medium",
+        "details": "Build a React-based dashboard that displays all appointments and allows doctors to manage them. Integrate staff scheduling features as optional enhancements. The core functionality of the doctor dashboard has been completed, including real-time statistics and analytics with charts, today's schedule management with appointment actions, a notification system for pending confirmations, quick appointment management (confirm/complete), calendar integration, and an upcoming appointments view. The design is responsive and supports role-based access.",
+        "testStrategy": "Verify that the dashboard displays correct appointment data and allows for management actions like rescheduling or cancellation. Ensure that real-time updates and notifications function correctly. Test role-based access to ensure appropriate views for different user roles.",
+        "subtasks": [
+          {
+            "id": 4,
+            "title": "Implement Staff Scheduling",
+            "description": "Develop features for staff scheduling and management.",
+            "status": "done",
+            "dependencies": [
+              3
+            ],
+            "details": "Allow staff to view, update, and manage their schedules, ensuring integration with appointment management. This feature is deferred as it requires additional models and is marked as an optional enhancement.",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Conduct Testing",
+            "description": "Perform comprehensive testing of the dashboard and its features.",
+            "status": "done",
+            "dependencies": [
+              4
+            ],
+            "details": "Include unit testing, integration testing, and user acceptance testing to ensure all components function correctly and meet user requirements. Focus on testing real-time updates, notification systems, and role-based access.",
+            "testStrategy": ""
+          },
+          {
+            "id": 1,
+            "title": "Design Dashboard UI",
+            "description": "Create wireframes and design the user interface for the dashboard.",
+            "dependencies": [],
+            "details": "Focus on creating an intuitive and user-friendly layout that includes all necessary components such as charts, tables, and navigation elements.\n<info added on 2025-06-29T19:27:45.742Z>\nImplemented comprehensive doctor dashboard with:\n- Statistics cards showing today's appointments, weekly stats, completion rate, and next appointment\n- Today's schedule view with appointment details and status chips\n- Calendar widget for date selection and navigation\n- Upcoming appointments list for the week\n- Quick action buttons for timeslot management and appointment viewing\n- Responsive design with Material-UI Grid system\n- Real-time data fetching using React Query\n- Role-based display (shows generic dashboard for non-doctors)\n</info added on 2025-06-29T19:27:45.742Z>",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement Data Integration",
+            "description": "Develop the backend services to integrate data into the dashboard.",
+            "dependencies": [
+              1
+            ],
+            "details": "Ensure data from various sources is correctly fetched, processed, and displayed on the dashboard in real-time.\n<info added on 2025-06-29T19:30:53.377Z>\nImplemented comprehensive data integration for doctor dashboard:\n- Created getDashboardStats endpoint in appointmentController with aggregated statistics\n- Added route /appointments/stats for fetching dashboard analytics\n- Integrated monthly statistics with appointment status breakdown\n- Added analytics charts using Recharts library:\n  - Pie chart for appointment status distribution\n  - Bar chart for meeting type breakdown\n- Updated dashboard to fetch and display monthly statistics\n- Added unique pharma companies count for doctors\n- Integrated completion rate calculation\n- Successfully installed recharts dependency\n</info added on 2025-06-29T19:30:53.377Z>",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Develop Appointment Management Features",
+            "description": "Create features to manage appointments within the dashboard.",
+            "dependencies": [
+              2
+            ],
+            "details": "Include functionalities for scheduling, rescheduling, and canceling appointments, along with notifications.\n<info added on 2025-06-29T19:32:14.104Z>\nImplemented comprehensive appointment management features in the dashboard:\n- Added notification system for pending appointments needing confirmation\n- Integrated quick action buttons for confirming and completing appointments\n- Added appointment status workflow management directly from dashboard\n- Implemented real-time updates using React Query cache invalidation\n- Added visual indicators for meeting types (virtual vs in-person)\n- Displayed product information in appointment details\n- Added pending actions panel with prioritized list\n- Integrated snackbar notifications for action feedback\n- Added processing state management to prevent duplicate actions\n- Enhanced appointment cards with contextual actions based on status\n</info added on 2025-06-29T19:32:14.104Z>",
+            "status": "done",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Implement Pharma Research Upload and Sharing",
+        "description": "Allow pharma users to upload research and share it with doctors.",
+        "details": "Develop a file upload system using cloud storage for research files. Implement sharing controls to allow pharma users to specify which doctors can access their research.",
+        "testStrategy": "Test file uploads with various formats and verify access controls by checking doctor access permissions.",
+        "priority": "medium",
+        "dependencies": [
+          2
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement File Upload System",
+            "description": "Develop the functionality to allow users to upload files to the system.",
+            "dependencies": [],
+            "details": "This includes creating a user interface for file selection and implementing backend logic to handle file uploads.\n<info added on 2025-06-29T19:37:11.540Z>\nImplemented comprehensive file upload system for research documents:\n- Created Research model with sharing capabilities and access control\n- Implemented research controller with full CRUD operations\n- Added multer configuration for file uploads (PDF, DOC, DOCX, PPT, etc.)\n- Set up file storage in uploads/research directory\n- Added validators for all research endpoints\n- Configured routes with proper authentication and permissions\n- Implemented sharing system with view/download access levels\n- Added file download tracking and view counts\n- Static file serving already configured in server\n</info added on 2025-06-29T19:37:11.540Z>",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Integrate Cloud Storage",
+            "description": "Integrate the system with a cloud storage provider to store uploaded files.",
+            "dependencies": [
+              1
+            ],
+            "details": "Choose a cloud storage provider (e.g., AWS S3, Google Cloud Storage) and implement the necessary API calls to store and retrieve files.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Implement Sharing Controls",
+            "description": "Develop controls to allow users to share uploaded files with others.",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "This includes creating a user interface for sharing options and implementing backend logic to manage access permissions.\n<info added on 2025-06-29T19:39:29.534Z>\nImplemented comprehensive sharing controls for research documents, including the creation of a Research page with full upload, view, share, and download functionality. Developed a role-based UI where pharma users can upload and share documents, while doctors can view and download them. Added document filtering by category and search capabilities. Created an upload dialog featuring file selection, metadata input, and a public/private toggle. Implemented a share dialog with doctor search and selection using Autocomplete. Added an edit dialog for updating document metadata, integrated view and download tracking, and included visual indicators for public/private documents. Developed tabs for pharma users to switch between 'My Uploads' and 'Public Library'. Ensured proper error handling and success notifications throughout the process.\n</info added on 2025-06-29T19:39:29.534Z>",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Conduct Testing",
+            "description": "Perform testing to ensure the file upload, cloud storage integration, and sharing controls work as expected.",
+            "dependencies": [
+              1,
+              2,
+              3
+            ],
+            "details": "Develop test cases and perform both unit and integration testing to validate the functionality and performance of the system.",
+            "status": "done",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Develop Research Library for Doctors",
+        "description": "Enhance the existing library interface for doctors to browse and read uploaded pharma research.",
+        "status": "done",
+        "dependencies": [
+          6
+        ],
+        "priority": "medium",
+        "details": "The library interface has been implemented with a responsive grid layout using Material-UI components. It includes search functionality, category filters, document cards, view/download counters, and role-based access. Future enhancements may include additional features or optimizations.",
+        "testStrategy": "Verify that all implemented features, such as search, filter, and download functionalities, work correctly. Ensure role-based access is functioning as intended.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design Library UI Layout",
+            "description": "Create the initial design for the library interface, focusing on user experience and accessibility.",
+            "status": "done",
+            "dependencies": [],
+            "details": "This task involves creating wireframes and mockups for the library UI. Ensure the design is intuitive and accessible, with clear navigation and layout.",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement Search and Filter Functionality",
+            "description": "Develop the search and filter features for the library interface, allowing users to easily find and sort library items.",
+            "status": "done",
+            "dependencies": [
+              1
+            ],
+            "details": "This task includes coding the search bar and filter options, integrating them into the UI, and ensuring they function correctly with the library database.",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Test Library UI and Features",
+            "description": "Conduct thorough testing of the library interface, including the search and filter functionalities, to ensure everything works as expected.",
+            "status": "done",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Perform usability testing, functional testing, and accessibility testing to identify and fix any issues with the UI and its features.",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Review and Optimize Existing Features",
+            "description": "Review the implemented features of the library interface and optimize for performance and usability.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Analyze the current implementation of the library interface, focusing on the search, filter, and download functionalities. Identify areas for performance improvement and enhance user experience.",
+            "testStrategy": "Conduct performance testing and gather user feedback to identify potential improvements."
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Set Up Basic Notifications System",
+        "description": "Implement a notification system for appointment updates and research uploads.",
+        "status": "done",
+        "dependencies": [
+          5,
+          7
+        ],
+        "priority": "medium",
+        "details": "Utilize an in-app notification system to alert users about new appointments, research uploads, and schedule changes. Email notifications are deferred for future implementation.",
+        "testStrategy": "Test in-app notification delivery by simulating relevant events and ensure the system is ready for future real-time updates.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Email Service Integration",
+            "description": "Integrate an email service to send notifications to users.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Research and select an appropriate email service provider, set up the service, and integrate it with the existing system to enable email notifications. This task is deferred as it requires external SMTP configuration and is not critical for MVP.",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Event Simulation for Notifications",
+            "description": "Simulate events to trigger notifications for testing purposes.",
+            "status": "done",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Create a set of test events that can be used to trigger in-app notifications to ensure the system is functioning correctly.",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Testing and Validation",
+            "description": "Test the notification systems to ensure reliable delivery and correct functionality.",
+            "status": "done",
+            "dependencies": [
+              3
+            ],
+            "details": "Conduct thorough testing of the in-app notification system, including edge cases and stress testing, to validate its reliability and performance.",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "In-App Notification Development",
+            "description": "Develop the in-app notification system to alert users within the application.",
+            "dependencies": [],
+            "details": "Design and implement a system to display notifications within the app, ensuring it is user-friendly and integrates seamlessly with the existing user interface.\n<info added on 2025-06-29T19:43:46.361Z>\nImplemented comprehensive in-app notification system:\n- Created Notification model with types for appointments, research, and system messages\n- Implemented NotificationService for creating notifications for various events\n- Created notification controller with endpoints for viewing, marking as read, and managing notifications\n- Added notification routes to server\n- Notification system tracks read/unread status, timestamps, and priority levels\n- Support for pagination and filtering by type/read status\n- Prepared hooks for future real-time notifications (Socket.io)\n- Frontend already uses notistack for toast notifications\n</info added on 2025-06-29T19:43:46.361Z>",
+            "status": "done",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Establish Role-Based Access Control",
+        "description": "Ensure that all features are accessible only to users with appropriate roles.",
+        "status": "done",
+        "dependencies": [
+          2
+        ],
+        "priority": "medium",
+        "details": "The role-based access control system is fully implemented. The backend uses authentication middleware to validate JWT tokens, authorization middleware to check user roles, and permission-based middleware for granular access control. All routes are protected with appropriate role/permission checks. The frontend includes a PrivateRoute component for protected routes, a useAuth hook for user role information, and components that conditionally render based on user roles. Navigation menu items are filtered by role, and role-specific views are implemented.",
+        "testStrategy": "Conduct comprehensive access control tests to verify that users can only access features permitted by their roles. Ensure that all role-specific views and actions are correctly restricted.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Develop Middleware for Role-Based Access Control",
+            "description": "Create middleware to handle role-based access control logic.",
+            "status": "completed",
+            "dependencies": [],
+            "details": "Design and implement middleware that intercepts requests and checks user roles against access permissions.",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement Frontend Role Checks",
+            "description": "Add role-based checks in the frontend application.",
+            "status": "completed",
+            "dependencies": [
+              1
+            ],
+            "details": "Ensure that the frontend application checks user roles and adjusts the UI and available actions accordingly.",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Conduct Access Control Testing",
+            "description": "Perform testing to verify correct implementation of access control.",
+            "status": "completed",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Test the middleware and frontend to ensure that users have appropriate access based on their roles, and no unauthorized access is possible.",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Document Role-Based Access Control Implementation",
+            "description": "Create documentation for the role-based access control system.",
+            "status": "completed",
+            "dependencies": [
+              1,
+              2,
+              3
+            ],
+            "details": "Write comprehensive documentation detailing the middleware logic, frontend checks, and testing results for future reference and maintenance.",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Enhance Role-Based Access for Future Roles",
+            "description": "Plan enhancements for future roles such as Staff and Admin.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Develop a strategy to implement limited read access for Staff and full access for Admin in future updates.",
+            "testStrategy": "Plan tests to ensure future roles have correct access levels."
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Prepare for Future Enhancements",
+        "description": "Lay groundwork for future features like analytics, messaging, and advanced notifications.",
+        "details": "Document potential enhancements and ensure the current architecture can support future development. Consider integration points for analytics and messaging systems.",
+        "testStrategy": "Review architecture documentation and verify that it aligns with future enhancement plans.",
+        "priority": "low",
+        "dependencies": [
+          8,
+          9
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Document Enhancements",
+            "description": "Create detailed documentation for all recent enhancements made to the system.",
+            "dependencies": [],
+            "details": "Include descriptions, purposes, and any relevant technical details for each enhancement.\n<info added on 2025-06-29T19:47:24.787Z>\nCreated comprehensive project documentation:\n- ARCHITECTURE.md: Detailed technical architecture documentation covering technology stack, design patterns, data models, security, scalability, and deployment\n- FUTURE_ENHANCEMENTS.md: Comprehensive roadmap with prioritized enhancements including real-time notifications, email service, video consultations, mobile apps, analytics, and compliance features\n- Updated README.md: Enhanced with current implementation status, detailed tech stack, complete API documentation, and accurate project structure\n- All documentation follows professional standards and provides clear guidance for future development\n</info added on 2025-06-29T19:47:24.787Z>",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Conduct Architecture Review",
+            "description": "Review the current system architecture to ensure it supports recent enhancements and future scalability.",
+            "dependencies": [
+              1
+            ],
+            "details": "Analyze the system's architecture, identify any potential bottlenecks, and suggest improvements.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Identify Integration Points",
+            "description": "Identify and document integration points within the system for enhanced interoperability.",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "List all current and potential integration points, including APIs and data exchange protocols.",
+            "status": "done",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "title": "Integrate Supabase Database into Pharmadoc Application",
+        "description": "Set up and integrate Supabase as the primary database for the Pharmadoc application, replacing the current mock data system.",
+        "details": "Begin by creating a new Supabase project and configure the necessary database schema to support existing and planned features of the Pharmadoc application. This includes defining tables, relationships, and indexes that align with the application's data model. Implement Supabase's authentication system to manage user accounts and roles, ensuring it integrates seamlessly with the existing role-based access control system. Migrate existing mock data to the new PostgreSQL database, ensuring data integrity and consistency. Leverage Supabase's real-time capabilities to enhance features such as notifications and data updates. Ensure that the integration supports future enhancements as outlined in Task 10, such as analytics and messaging.",
+        "testStrategy": "Verify the Supabase project setup by checking the database schema against the application's data model. Test the authentication system by creating test users and verifying role-based access control. Conduct data migration tests to ensure all mock data is accurately transferred to the new database. Validate real-time capabilities by simulating data changes and observing updates in the application. Ensure that the integration supports future enhancements by reviewing the architecture and testing potential analytics and messaging features.",
+        "status": "pending",
+        "dependencies": [
+          9,
+          10
+        ],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Supabase Project and Configure Database Schema",
+            "description": "Set up a new Supabase project and configure the database schema to support Pharmadoc's existing and planned features.",
+            "dependencies": [],
+            "details": "Define tables, relationships, and indexes according to the application's data model, ensuring compatibility with existing features.",
+            "status": "pending",
+            "testStrategy": "Verify schema setup by comparing with existing mock data structure and ensure all necessary tables and fields are present."
+          },
+          {
+            "id": 2,
+            "title": "Implement Supabase Authentication System",
+            "description": "Integrate Supabase's authentication system to manage user accounts and roles.",
+            "dependencies": [
+              1
+            ],
+            "details": "Configure authentication to work with the existing role-based access control system, ensuring seamless integration.",
+            "status": "pending",
+            "testStrategy": "Test user login, registration, and role assignment to ensure they function as expected with the new system."
+          },
+          {
+            "id": 3,
+            "title": "Migrate Existing Mock Data to Supabase",
+            "description": "Transfer existing mock data to the new Supabase PostgreSQL database, ensuring data integrity and consistency.",
+            "dependencies": [
+              1
+            ],
+            "details": "Use data migration scripts to move data from the mock system to Supabase, verifying data accuracy and completeness.",
+            "status": "pending",
+            "testStrategy": "Perform data validation checks to ensure all data is correctly migrated and accessible in the new database."
+          },
+          {
+            "id": 4,
+            "title": "Leverage Supabase Real-Time Capabilities",
+            "description": "Enhance application features using Supabase's real-time capabilities, such as notifications and data updates.",
+            "dependencies": [
+              1,
+              3
+            ],
+            "details": "Implement real-time subscriptions for key data changes and notifications to improve user experience.",
+            "status": "pending",
+            "testStrategy": "Simulate data changes and verify that real-time updates are correctly reflected in the application interface."
+          },
+          {
+            "id": 5,
+            "title": "Ensure Future Enhancement Support",
+            "description": "Configure the integration to support future enhancements, including analytics and messaging as outlined in Task 10.",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "details": "Set up necessary configurations and placeholders for future features, ensuring scalability and flexibility.",
+            "status": "pending",
+            "testStrategy": "Review planned enhancements and verify that current configurations allow for seamless future integration."
+          }
+        ]
+      },
+      {
+        "id": 12,
+        "title": "Migrate User Authentication System to Supabase Auth",
+        "description": "Replace the current JWT-based authentication with Supabase's built-in authentication system, including user registration, login, role management, and session handling.",
+        "details": "Begin by setting up Supabase Auth in the existing Supabase project. Configure authentication providers as needed (e.g., email/password, OAuth). Migrate existing user data to Supabase's user management system, ensuring that all roles and permissions are preserved. Update backend authentication middleware to use Supabase's session management and role-based access control. Modify the frontend authentication context to integrate with Supabase Auth, ensuring seamless user experience during login, registration, and session management. Ensure that all existing features relying on authentication are updated to work with Supabase, including user role checks and session handling. Coordinate with the database integration task to ensure smooth transition of user data and roles.",
+        "testStrategy": "Verify that user registration, login, and logout work correctly with Supabase Auth. Test role-based access control by creating users with different roles and ensuring they have appropriate access. Conduct session management tests to ensure users remain logged in across sessions and are logged out correctly. Perform regression testing on all features that rely on authentication to ensure they function correctly with the new system. Validate data migration by checking that all user data and roles are accurately transferred to Supabase.",
+        "status": "pending",
+        "dependencies": [
+          2,
+          11
+        ],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set Up Supabase Auth",
+            "description": "Initialize Supabase Auth in the existing Supabase project and configure authentication providers.",
+            "dependencies": [],
+            "details": "Create a new Supabase project if not already existing. Enable Supabase Auth and configure providers such as email/password and OAuth as required.",
+            "status": "pending",
+            "testStrategy": "Verify that Supabase Auth is correctly set up by testing user registration and login with configured providers."
+          },
+          {
+            "id": 2,
+            "title": "Migrate Existing User Data",
+            "description": "Transfer current user data to Supabase's user management system, ensuring roles and permissions are preserved.",
+            "dependencies": [
+              1
+            ],
+            "details": "Export existing user data from the current system. Use Supabase's API to import users, ensuring roles and permissions are mapped correctly.",
+            "status": "pending",
+            "testStrategy": "Check that all users are present in Supabase with correct roles and permissions by querying the Supabase database."
+          },
+          {
+            "id": 3,
+            "title": "Update Backend Authentication Middleware",
+            "description": "Modify backend authentication middleware to use Supabase's session management and role-based access control.",
+            "dependencies": [
+              2
+            ],
+            "details": "Replace JWT-based authentication logic with Supabase's session management. Implement role-based access control using Supabase's policies.",
+            "status": "pending",
+            "testStrategy": "Test backend endpoints to ensure they correctly authenticate and authorize users based on Supabase sessions and roles."
+          },
+          {
+            "id": 4,
+            "title": "Integrate Supabase Auth with Frontend",
+            "description": "Modify the frontend authentication context to integrate with Supabase Auth for seamless user experience.",
+            "dependencies": [
+              3
+            ],
+            "details": "Update React components to use Supabase Auth for login, registration, and session management. Ensure real-time updates using Supabase subscriptions.",
+            "status": "pending",
+            "testStrategy": "Perform end-to-end tests on the frontend to ensure users can register, log in, and maintain sessions without issues."
+          },
+          {
+            "id": 5,
+            "title": "Coordinate with Database Integration",
+            "description": "Ensure smooth transition of user data and roles by coordinating with the database integration task.",
+            "dependencies": [
+              2,
+              3,
+              4
+            ],
+            "details": "Work with the database team to verify that all user data and roles are correctly integrated and accessible via Supabase.",
+            "status": "pending",
+            "testStrategy": "Conduct integration tests to ensure that all features relying on user data and roles function correctly post-migration."
+          }
+        ]
+      },
+      {
+        "id": 13,
+        "title": "Implement Supabase Database Models and Schema",
+        "description": "Create all necessary database tables for Users, Timeslots, Appointments, Research documents, and Notifications using Supabase's PostgreSQL database.",
+        "details": "Begin by setting up a new Supabase project and configuring the PostgreSQL database. Define tables for Users, Timeslots, Appointments, Research documents, and Notifications. Ensure each table has appropriate columns, data types, and constraints. Establish relationships between tables using foreign keys, such as linking Users to Appointments and Timeslots. Implement indexes on frequently queried fields to optimize performance. Set up row-level security policies to enforce access control based on user roles, ensuring that users can only access data they are permitted to view. Use Supabase's SQL editor to write and execute the necessary SQL scripts for creating and configuring the database schema. Document the schema design and any assumptions or decisions made during the process.",
+        "testStrategy": "Verify the database schema by checking that all tables are created with the correct columns, data types, and constraints. Test relationships by inserting sample data and ensuring foreign key constraints are enforced. Validate indexes by running queries and checking performance improvements. Test row-level security policies by attempting to access data with different user roles and ensuring access is correctly restricted. Use Supabase's dashboard to monitor database activity and confirm that the schema functions as expected.",
+        "status": "pending",
+        "dependencies": [
+          2,
+          11
+        ],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set Up Supabase Project and Configure PostgreSQL",
+            "description": "Initialize a new Supabase project and configure the PostgreSQL database settings.",
+            "dependencies": [],
+            "details": "Create a Supabase account, set up a new project, and configure the database settings to prepare for schema creation.",
+            "status": "pending",
+            "testStrategy": "Verify that the Supabase project is accessible and the PostgreSQL database is correctly configured."
+          },
+          {
+            "id": 2,
+            "title": "Define Database Tables and Columns",
+            "description": "Create tables for Users, Timeslots, Appointments, Research documents, and Notifications with appropriate columns and data types.",
+            "dependencies": [
+              1
+            ],
+            "details": "Use Supabase's SQL editor to define tables and columns, ensuring each table has the necessary fields and data types.",
+            "status": "pending",
+            "testStrategy": "Check that all tables are created with the correct columns and data types by querying the database schema."
+          },
+          {
+            "id": 3,
+            "title": "Establish Table Relationships and Indexes",
+            "description": "Set up foreign keys and indexes to optimize database performance and ensure data integrity.",
+            "dependencies": [
+              2
+            ],
+            "details": "Define foreign key relationships between tables and create indexes on frequently queried fields.",
+            "status": "pending",
+            "testStrategy": "Test the relationships by inserting sample data and querying related tables to ensure integrity and performance."
+          },
+          {
+            "id": 4,
+            "title": "Implement Row-Level Security Policies",
+            "description": "Configure row-level security policies to enforce access control based on user roles.",
+            "dependencies": [
+              3
+            ],
+            "details": "Set up security policies in Supabase to restrict data access, ensuring users can only view permitted data.",
+            "status": "pending",
+            "testStrategy": "Attempt to access restricted data with different user roles to verify that security policies are correctly enforced."
+          },
+          {
+            "id": 5,
+            "title": "Document Schema Design and Migration Strategy",
+            "description": "Document the database schema design, assumptions, and the strategy for migrating from mock data to Supabase.",
+            "dependencies": [
+              4
+            ],
+            "details": "Create comprehensive documentation detailing the schema design, decisions made, and steps for migrating existing application data.",
+            "status": "pending",
+            "testStrategy": "Review the documentation for completeness and accuracy, ensuring it covers all aspects of the schema and migration process."
+          }
+        ]
+      },
+      {
+        "id": 14,
+        "title": "Migrate Timeslot Management to Supabase",
+        "description": "Replace the current mock timeslot system with Supabase database operations, updating all CRUD operations and implementing real-time subscriptions.",
+        "details": "Begin by setting up the Supabase client in the application if not already done. Replace existing CRUD operations for timeslots with Supabase's database operations, ensuring all data interactions are handled through Supabase's API. Implement real-time subscriptions to listen for changes in the timeslot data, allowing the application to update the UI in real-time when timeslot data changes. Ensure that role-based access control is enforced by setting up row-level security policies in Supabase, allowing only authorized users to create, read, update, or delete timeslots. Coordinate with the authentication system to ensure that user roles and permissions are correctly applied when accessing timeslot data.",
+        "testStrategy": "Verify that all CRUD operations for timeslots are functioning correctly by performing create, read, update, and delete actions through the application and checking the Supabase database for accurate data changes. Test real-time updates by modifying timeslot data in the database and ensuring the application UI reflects these changes immediately. Validate role-based access control by attempting CRUD operations with users of different roles and ensuring only authorized actions are permitted. Conduct integration tests to ensure seamless interaction between the timeslot management system and the Supabase database.",
+        "status": "pending",
+        "dependencies": [
+          3,
+          11,
+          13
+        ],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set Up Supabase Client",
+            "description": "Integrate the Supabase client into the Node.js/React application.",
+            "dependencies": [],
+            "details": "Install the Supabase client library and configure it with the project's Supabase URL and API key.",
+            "status": "pending",
+            "testStrategy": "Verify the connection to Supabase by fetching a test table's data."
+          },
+          {
+            "id": 2,
+            "title": "Migrate CRUD Operations to Supabase",
+            "description": "Replace existing mock CRUD operations with Supabase database operations for timeslots.",
+            "dependencies": [
+              1
+            ],
+            "details": "Update the application's data layer to use Supabase's API for creating, reading, updating, and deleting timeslot data.",
+            "status": "pending",
+            "testStrategy": "Perform unit tests on each CRUD operation to ensure they interact correctly with the Supabase database."
+          },
+          {
+            "id": 3,
+            "title": "Implement Real-Time Subscriptions",
+            "description": "Set up real-time subscriptions to listen for changes in the timeslot data.",
+            "dependencies": [
+              2
+            ],
+            "details": "Use Supabase's real-time capabilities to subscribe to changes in the timeslot table and update the UI accordingly.",
+            "status": "pending",
+            "testStrategy": "Test real-time updates by modifying timeslot data in the database and observing UI changes."
+          },
+          {
+            "id": 4,
+            "title": "Configure Row-Level Security",
+            "description": "Set up row-level security policies in Supabase to enforce role-based access control.",
+            "dependencies": [
+              2
+            ],
+            "details": "Define security policies in Supabase to restrict timeslot data access based on user roles.",
+            "status": "pending",
+            "testStrategy": "Attempt CRUD operations with different user roles to ensure security policies are correctly enforced."
+          },
+          {
+            "id": 5,
+            "title": "Coordinate with Authentication System",
+            "description": "Ensure user roles and permissions are correctly applied when accessing timeslot data.",
+            "dependencies": [
+              4
+            ],
+            "details": "Integrate Supabase authentication with the existing system to manage user roles and permissions.",
+            "status": "pending",
+            "testStrategy": "Test access control by logging in with different user roles and verifying data access permissions."
+          }
+        ]
+      },
+      {
+        "id": 15,
+        "title": "Migrate Appointment System to Supabase",
+        "description": "Update the appointment booking and management system to use Supabase database instead of mock data, implementing real-time updates and conflict resolution.",
+        "details": "Begin by setting up the Supabase client in the application if not already done. Replace existing mock data operations for appointments with Supabase's database operations, ensuring all CRUD operations are handled through Supabase's API. Implement real-time updates using Supabase's subscription feature to listen for changes in appointment data, allowing the application to update the UI in real-time when appointment status changes. Use Supabase Edge Functions to handle complex logic for conflict resolution and notification triggers. Ensure role-based access control is enforced by setting up row-level security policies in Supabase. Coordinate with the timeslot management system to ensure seamless integration and data consistency.",
+        "testStrategy": "Verify that all CRUD operations for appointments are functioning correctly by performing create, read, update, and delete actions through the application and checking the Supabase database for accurate data changes. Test real-time updates by modifying appointment data in the database and ensuring the application UI reflects these changes immediately. Validate conflict resolution logic by simulating concurrent appointment updates and ensuring the system resolves conflicts correctly. Test notification triggers by simulating appointment status changes and verifying that notifications are sent as expected.",
+        "status": "pending",
+        "dependencies": [
+          11,
+          13,
+          14
+        ],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set Up Supabase Client",
+            "description": "Initialize and configure the Supabase client in the Node.js/React application.",
+            "dependencies": [],
+            "details": "Install the Supabase client library and configure it with the project's Supabase URL and API key. Ensure the client is initialized in the application entry point.",
+            "status": "pending",
+            "testStrategy": "Verify the client setup by checking connectivity to the Supabase database using a simple query."
+          },
+          {
+            "id": 2,
+            "title": "Replace Mock Data with Supabase CRUD Operations",
+            "description": "Migrate existing appointment data operations to use Supabase's CRUD API.",
+            "dependencies": [
+              1
+            ],
+            "details": "Identify all instances of mock data usage for appointments and replace them with Supabase's create, read, update, and delete operations.",
+            "status": "pending",
+            "testStrategy": "Perform CRUD operations through the application and verify changes in the Supabase database."
+          },
+          {
+            "id": 3,
+            "title": "Implement Real-Time Updates",
+            "description": "Use Supabase's subscription feature to enable real-time updates for appointment data.",
+            "dependencies": [
+              2
+            ],
+            "details": "Set up Supabase subscriptions to listen for changes in the appointments table and update the UI in real-time.",
+            "status": "pending",
+            "testStrategy": "Simulate appointment changes in the database and verify that the application UI updates accordingly without page refresh."
+          },
+          {
+            "id": 4,
+            "title": "Develop Conflict Resolution Logic with Edge Functions",
+            "description": "Create Supabase Edge Functions to handle complex logic for conflict resolution and notifications.",
+            "dependencies": [
+              3
+            ],
+            "details": "Write and deploy Edge Functions to manage appointment conflicts and trigger notifications based on business rules.",
+            "status": "pending",
+            "testStrategy": "Test Edge Functions by creating conflicting appointment scenarios and ensure proper resolution and notifications."
+          },
+          {
+            "id": 5,
+            "title": "Enforce Role-Based Access Control",
+            "description": "Implement row-level security policies in Supabase to enforce role-based access control.",
+            "dependencies": [
+              4
+            ],
+            "details": "Define and apply row-level security policies on the appointments table to restrict data access based on user roles.",
+            "status": "pending",
+            "testStrategy": "Test access control by attempting CRUD operations with different user roles and verifying access restrictions."
+          }
+        ]
+      },
+      {
+        "id": 16,
+        "title": "Implement Supabase Storage for Research Documents",
+        "description": "Replace the current file upload system with Supabase Storage for handling research document uploads.",
+        "details": "To implement Supabase Storage for research documents, first set up a Supabase project if not already done. Create a storage bucket specifically for research documents. Define bucket policies to ensure that only authorized users can upload, view, or download documents. Organize files within the bucket using a logical structure, such as by user or document type. Implement secure access controls using Supabase's authentication and authorization features to ensure that only pharma users can upload documents and only authorized doctors can access them. Update the existing file upload system to interface with Supabase Storage, replacing any direct file handling with API calls to Supabase. Ensure that all file operations (upload, download, delete) are handled through Supabase's API. Consider implementing logging for file access and modifications for auditing purposes.",
+        "testStrategy": "Verify that the Supabase Storage bucket is correctly configured with appropriate policies by attempting to upload and access files with different user roles. Test file uploads by pharma users and ensure that the files are stored in the correct bucket and structure. Verify that only authorized doctors can access the uploaded documents. Test the file download and deletion processes to ensure they work as expected and respect access controls. Conduct security testing to ensure that unauthorized access is prevented. Additionally, test the integration with the existing system to ensure seamless operation.",
+        "status": "pending",
+        "dependencies": [
+          6,
+          11,
+          13
+        ],
+        "priority": "medium",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set Up Supabase Project and Storage Bucket",
+            "description": "Initialize a Supabase project and create a storage bucket for research documents.",
+            "dependencies": [],
+            "details": "Create a new Supabase project if not already existing. Within the project, set up a storage bucket specifically for research documents.",
+            "status": "pending",
+            "testStrategy": "Verify that the Supabase project is accessible and the storage bucket is correctly created and visible in the Supabase dashboard."
+          },
+          {
+            "id": 2,
+            "title": "Define Bucket Policies and Access Controls",
+            "description": "Configure bucket policies to ensure secure access and define who can upload, view, or download documents.",
+            "dependencies": [
+              1
+            ],
+            "details": "Use Supabase's policy editor to set up Row Level Security and define policies that restrict access to authorized users only.",
+            "status": "pending",
+            "testStrategy": "Test access with different user roles to ensure only authorized users can perform actions on the storage bucket."
+          },
+          {
+            "id": 3,
+            "title": "Organize Files and Implement Access Controls",
+            "description": "Organize files within the bucket and implement secure access controls using Supabase's features.",
+            "dependencies": [
+              2
+            ],
+            "details": "Structure files logically within the bucket, such as by user or document type. Use Supabase's authentication and authorization features to manage access.",
+            "status": "pending",
+            "testStrategy": "Check that files are organized correctly and access controls are enforced by attempting unauthorized access."
+          },
+          {
+            "id": 4,
+            "title": "Update File Upload System to Use Supabase API",
+            "description": "Modify the existing file upload system to interface with Supabase Storage using API calls.",
+            "dependencies": [
+              3
+            ],
+            "details": "Replace direct file handling in the Node.js/React application with API calls to Supabase for all file operations.",
+            "status": "pending",
+            "testStrategy": "Perform file upload, download, and delete operations through the application and verify they are handled by Supabase."
+          },
+          {
+            "id": 5,
+            "title": "Implement Logging and Auditing",
+            "description": "Add logging for file access and modifications to support auditing.",
+            "dependencies": [
+              4
+            ],
+            "details": "Use Supabase's Edge Functions or other logging mechanisms to track file access and modifications for auditing purposes.",
+            "status": "pending",
+            "testStrategy": "Review logs to ensure all file operations are recorded accurately and can be audited."
+          }
+        ]
+      },
+      {
+        "id": 17,
+        "title": "Implement Real-time Notifications with Supabase",
+        "description": "Replace the current notification system with Supabase real-time subscriptions and Edge Functions to handle notifications for various events.",
+        "details": "To implement real-time notifications using Supabase, first ensure that the Supabase project is set up and integrated with the application. Use Supabase's real-time capabilities to subscribe to changes in the database tables related to appointments, research uploads, and other critical events. Implement Supabase Edge Functions to handle complex notification logic, such as filtering events and formatting notification messages. Replace existing notification logic with Supabase's real-time subscriptions to ensure immediate updates. Ensure that the notification system is integrated with the user interface to display real-time alerts to users. Consider using Supabase's authentication and authorization features to ensure notifications are only sent to authorized users.",
+        "testStrategy": "Verify that real-time notifications are triggered correctly by simulating events such as appointment bookings, cancellations, and research uploads. Check that notifications are delivered in real-time to the appropriate users. Test the integration of Supabase Edge Functions by ensuring they execute correctly and handle notification logic as expected. Validate that notifications are displayed correctly in the user interface and that users receive alerts only for events they are authorized to see.",
+        "status": "pending",
+        "dependencies": [
+          8,
+          11,
+          13,
+          15
+        ],
+        "priority": "medium",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set Up Supabase Project and Integrate with Application",
+            "description": "Initialize a Supabase project and integrate it with the existing Node.js/React application.",
+            "dependencies": [],
+            "details": "Create a new Supabase project and obtain the API keys. Install the Supabase client library in the Node.js/React application and configure it with the project credentials.",
+            "status": "pending",
+            "testStrategy": "Verify the connection by fetching data from a test table in Supabase."
+          },
+          {
+            "id": 2,
+            "title": "Implement Real-time Subscriptions for Database Changes",
+            "description": "Use Supabase's real-time capabilities to subscribe to changes in database tables related to notifications.",
+            "dependencies": [
+              1
+            ],
+            "details": "Identify the tables related to appointments and research uploads. Use Supabase's real-time API to subscribe to insert, update, and delete events on these tables.",
+            "status": "pending",
+            "testStrategy": "Simulate database changes and ensure the application receives real-time updates."
+          },
+          {
+            "id": 3,
+            "title": "Develop Supabase Edge Functions for Notification Logic",
+            "description": "Create Edge Functions to handle complex notification logic such as filtering events and formatting messages.",
+            "dependencies": [
+              2
+            ],
+            "details": "Write Edge Functions in Supabase to process incoming events, apply business logic, and format notifications. Deploy these functions within the Supabase environment.",
+            "status": "pending",
+            "testStrategy": "Trigger Edge Functions with test events and verify the output matches expected notification formats."
+          },
+          {
+            "id": 4,
+            "title": "Replace Existing Notification Logic with Supabase Subscriptions",
+            "description": "Migrate the current notification system to use Supabase's real-time subscriptions and Edge Functions.",
+            "dependencies": [
+              3
+            ],
+            "details": "Remove the existing notification logic from the application and replace it with the new Supabase-based system. Ensure all event types are covered.",
+            "status": "pending",
+            "testStrategy": "Conduct end-to-end testing to ensure notifications are triggered and displayed correctly for all event types."
+          },
+          {
+            "id": 5,
+            "title": "Integrate Notifications with User Interface",
+            "description": "Ensure the notification system is integrated with the user interface to display real-time alerts to users.",
+            "dependencies": [
+              4
+            ],
+            "details": "Update the React components to listen for real-time notifications and display them in the user interface. Use Supabase's authentication features to ensure notifications are shown only to authorized users.",
+            "status": "pending",
+            "testStrategy": "Perform user acceptance testing to confirm that notifications appear in real-time and are visible only to authorized users."
+          }
+        ]
+      },
+      {
+        "id": 18,
+        "title": "Update Frontend to Use Supabase Client",
+        "description": "Refactor the React frontend to replace all Axios API calls with Supabase JavaScript client calls.",
+        "details": "Begin by installing the Supabase JavaScript client in the frontend project if not already done. Identify all instances where Axios is used to make API calls to the Express server. Replace these calls with equivalent Supabase client calls, ensuring that authentication, data fetching, and real-time subscriptions are correctly implemented using Supabase's API. Update the authentication context to use Supabase Auth, ensuring seamless integration with the existing user session management. Refactor data fetching hooks to utilize Supabase's real-time capabilities, subscribing to changes in the database where applicable. Ensure that all CRUD operations are correctly mapped to Supabase's API endpoints. Test the integration thoroughly to ensure that all functionalities work as expected with the new client.",
+        "testStrategy": "Verify that all API calls in the frontend are successfully replaced with Supabase client calls by testing each feature that involves data fetching or manipulation. Check that authentication flows, including login and session management, work seamlessly with Supabase Auth. Test real-time updates by modifying data in the Supabase database and ensuring the frontend reflects these changes in real-time. Conduct end-to-end tests to ensure that all user interactions, such as booking appointments or managing timeslots, function correctly with the new setup.",
+        "status": "pending",
+        "dependencies": [
+          11,
+          12,
+          13,
+          15
+        ],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Install Supabase JavaScript Client",
+            "description": "Add the Supabase JavaScript client to the project dependencies.",
+            "dependencies": [],
+            "details": "Use npm or yarn to install the Supabase JavaScript client in the frontend project.",
+            "status": "pending",
+            "testStrategy": "Verify that the Supabase client is listed in the package.json and can be imported without errors."
+          },
+          {
+            "id": 2,
+            "title": "Identify and Replace Axios API Calls",
+            "description": "Locate all Axios API calls and replace them with Supabase client calls.",
+            "dependencies": [
+              1
+            ],
+            "details": "Search the codebase for Axios usage and refactor these calls to use Supabase client methods for data fetching and manipulation.",
+            "status": "pending",
+            "testStrategy": "Ensure that all replaced API calls return the expected data using Supabase client methods."
+          },
+          {
+            "id": 3,
+            "title": "Integrate Supabase Auth",
+            "description": "Update the authentication context to use Supabase Auth for user session management.",
+            "dependencies": [
+              2
+            ],
+            "details": "Refactor the authentication logic to utilize Supabase's authentication methods, ensuring compatibility with existing session management.",
+            "status": "pending",
+            "testStrategy": "Test user login, logout, and session persistence to confirm seamless integration with Supabase Auth."
+          },
+          {
+            "id": 4,
+            "title": "Implement Real-time Data Fetching",
+            "description": "Refactor data fetching hooks to use Supabase's real-time capabilities.",
+            "dependencies": [
+              3
+            ],
+            "details": "Utilize Supabase's real-time subscriptions to update the UI in response to database changes.",
+            "status": "pending",
+            "testStrategy": "Simulate database changes and verify that the frontend updates in real-time as expected."
+          },
+          {
+            "id": 5,
+            "title": "Test and Validate Supabase Integration",
+            "description": "Conduct thorough testing of the new Supabase integration to ensure all functionalities work correctly.",
+            "dependencies": [
+              4
+            ],
+            "details": "Perform end-to-end testing of all CRUD operations, authentication, and real-time features to validate the integration.",
+            "status": "pending",
+            "testStrategy": "Use automated tests and manual testing to confirm that all features are functioning as intended with the Supabase client."
+          }
+        ]
+      },
+      {
+        "id": 19,
+        "title": "Set Up Supabase Environment and Deployment Configuration",
+        "description": "Configure environment variables for Supabase integration, set up development and production environments, update Docker configuration, and prepare deployment scripts for Render.com with Supabase backend.",
+        "details": "Begin by setting up environment variables required for Supabase integration, including database URL, API keys, and authentication secrets. Ensure these variables are securely stored and accessible in both development and production environments. Update the Docker configuration to include these environment variables, ensuring that the application can connect to Supabase services when deployed. Prepare deployment scripts for Render.com, configuring them to use the correct environment variables and ensuring that the Supabase backend is correctly initialized during deployment. Test the deployment process in a staging environment before moving to production to ensure all configurations are correct and the application functions as expected with Supabase.",
+        "testStrategy": "Verify that all environment variables are correctly set and accessible in both development and production environments. Test the Docker configuration by running the application locally and ensuring it connects to Supabase without issues. Deploy the application to a staging environment on Render.com and verify that it initializes correctly with Supabase. Check that all Supabase services (database, authentication, storage) are accessible and functioning as expected. Conduct end-to-end tests to ensure the application behaves correctly in the deployed environment.",
+        "status": "pending",
+        "dependencies": [
+          11,
+          13,
+          15
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 20,
+        "title": "Testing and Quality Assurance for Supabase Integration",
+        "description": "Conduct comprehensive testing of all Supabase integrations, including authentication, database operations, real-time features, file uploads, and notifications.",
+        "details": "Begin by reviewing the implementation details of all Supabase-related tasks to understand the integration points and expected behavior. Develop a suite of automated tests using a testing framework like Jest or Mocha to cover all aspects of the Supabase integration. This includes testing authentication flows with Supabase Auth, verifying CRUD operations on the Supabase database, and ensuring real-time features like subscriptions and notifications work as expected. Create test data to simulate various user roles and scenarios, and validate that performance meets the application's requirements. Additionally, conduct security audits to ensure compliance with best practices, focusing on data protection and access controls. Collaborate with developers to address any issues found during testing and document all test cases and results for future reference.",
+        "testStrategy": "Execute automated tests for all Supabase integrations, ensuring each test case passes successfully. Manually verify edge cases and scenarios that are difficult to automate, such as network failures or concurrent data modifications. Use Supabase's dashboard to monitor real-time data changes and verify that notifications are triggered correctly. Perform load testing to assess the system's performance under high usage conditions. Conduct a security review to ensure all data is protected and access controls are enforced. Document all findings and ensure any identified issues are resolved before deployment.",
+        "status": "pending",
+        "dependencies": [
+          11,
+          12,
+          13,
+          15,
+          17,
+          19
+        ],
+        "priority": "medium",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-06-29T18:34:16.621Z",
+      "updated": "2025-06-29T20:09:53.688Z",
+      "description": "Tasks for master context"
+    }
+  }
+}

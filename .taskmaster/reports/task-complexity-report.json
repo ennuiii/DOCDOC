@@ -1,0 +1,93 @@
+{
+	"meta": {
+		"generatedAt": "2025-06-29T18:34:52.293Z",
+		"tasksAnalyzed": 10,
+		"totalTasks": 10,
+		"analysisCount": 10,
+		"thresholdScore": 5,
+		"projectName": "Taskmaster",
+		"usedResearch": true
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 1,
+			"taskTitle": "Setup Project Repository",
+			"complexityScore": 5,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Break down the task into initializing Git repository, setting up frontend and backend structures, configuring Docker, and writing README.",
+			"reasoning": "The task involves multiple steps including repository setup, project structure configuration, and Docker setup, each requiring specific expertise."
+		},
+		{
+			"taskId": 2,
+			"taskTitle": "Implement User Authentication and Role Management",
+			"complexityScore": 7,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Divide into subtasks for user registration, login, JWT implementation, role definition, and secure password handling.",
+			"reasoning": "This task involves complex security considerations and multiple components like JWT and role management, which require thorough implementation and testing."
+		},
+		{
+			"taskId": 3,
+			"taskTitle": "Develop Doctor Timeslot Management",
+			"complexityScore": 6,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Create subtasks for UI design, timeslot CRUD operations, database integration, and testing.",
+			"reasoning": "The task requires both frontend and backend development, including UI design and database operations, which are moderately complex."
+		},
+		{
+			"taskId": 4,
+			"taskTitle": "Build Pharma Appointment Booking System",
+			"complexityScore": 6,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Split into tasks for booking interface design, backend logic for booking, timeslot update mechanism, and testing.",
+			"reasoning": "Involves creating a user interface and backend logic to handle bookings, which requires coordination between frontend and backend."
+		},
+		{
+			"taskId": 5,
+			"taskTitle": "Create Appointment Management Dashboard for Doctors",
+			"complexityScore": 7,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Break down into tasks for dashboard UI development, data integration, appointment management features, staff scheduling, and testing.",
+			"reasoning": "Developing a comprehensive dashboard involves complex UI components and data handling, making it a high-complexity task."
+		},
+		{
+			"taskId": 6,
+			"taskTitle": "Implement Pharma Research Upload and Sharing",
+			"complexityScore": 6,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Divide into subtasks for file upload system, cloud storage integration, sharing controls, and testing.",
+			"reasoning": "The task involves file handling, cloud integration, and access control, which are moderately complex to implement."
+		},
+		{
+			"taskId": 7,
+			"taskTitle": "Develop Research Library for Doctors",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Create subtasks for library UI development, search and filter functionality, and testing.",
+			"reasoning": "Building a library interface with search and filter features is straightforward but requires careful UI and UX considerations."
+		},
+		{
+			"taskId": 8,
+			"taskTitle": "Set Up Basic Notifications System",
+			"complexityScore": 6,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Break down into tasks for email service integration, in-app notification development, event simulation, and testing.",
+			"reasoning": "Implementing a notification system involves integrating multiple notification channels and ensuring reliable delivery, which is moderately complex."
+		},
+		{
+			"taskId": 9,
+			"taskTitle": "Establish Role-Based Access Control",
+			"complexityScore": 7,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Divide into subtasks for middleware development, frontend role checks, access control testing, and documentation.",
+			"reasoning": "Ensuring secure and correct role-based access control requires careful implementation and extensive testing, making it complex."
+		},
+		{
+			"taskId": 10,
+			"taskTitle": "Prepare for Future Enhancements",
+			"complexityScore": 4,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Create subtasks for documentation of enhancements, architecture review, and integration point identification.",
+			"reasoning": "This task is primarily documentation and planning, which is less complex but requires thoroughness to ensure future readiness."
+		}
+	]
+}

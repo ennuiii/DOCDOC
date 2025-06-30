@@ -1,0 +1,68 @@
+<context>
+# Overview  
+A web application connecting pharmaceutical companies (pharma) and doctors. The app allows doctors to publish available appointment timeslots, which pharma representatives can book to present new products or research. Doctors receive free tools for appointment management, staff scheduling, and access to pharma research. Pharma companies pay for access and can upload/share research with doctors.
+
+# Core Features  
+- **Doctor Timeslot Management**: Doctors can create, edit, and delete available timeslots for pharma appointments.
+- **Pharma Appointment Booking**: Pharma users can view available timeslots and apply/book them, specifying their presentation topic or product.
+- **Doctor Appointment & Staff Management**: Doctors can manage all appointments (pharma and patient), and schedule their staff (nurses, assistants, etc.).
+- **Pharma Research Upload & Sharing**: Pharma users can upload new research, studies, or product information and grant access to specific doctors or groups.
+- **Research Library for Doctors**: Doctors can browse and read pharma-uploaded research.
+- **User Roles & Access Control**: Separate roles for doctors, pharma, and (optionally) staff. Only pharma pays; doctors and staff use the app for free.
+- **Notifications & Reminders**: Email or in-app notifications for new appointments, research uploads, and schedule changes.
+- **(Optional) Analytics Dashboard**: For pharma to see engagement with their research; for doctors to track appointment stats.
+- **(Optional) Messaging**: Secure messaging between pharma and doctors.
+
+# User Experience  
+- **Personas**: 
+  - Doctor: Manages schedule, reviews pharma research, accepts/declines pharma appointments, manages staff.
+  - Pharma Rep: Books appointments, uploads research, tracks engagement.
+  - Staff: (Optional) Assists doctor with schedule, sees work assignments.
+- **Key Flows**:
+  - Doctor signs up, sets available timeslots, manages appointments, reviews research.
+  - Pharma signs up, pays for access, books timeslots, uploads research, grants access to doctors.
+  - Staff (if used) views work schedule, assists with appointments.
+- **UI/UX**: Clean, mobile-friendly, role-based dashboards, calendar views, research library, notifications.
+</context>
+<PRD>
+# Technical Architecture  
+- **Frontend**: React (with modern stack, e.g., Vite/CRA, Material UI or similar)
+- **Backend**: Node.js (Express or similar), REST API (optionally GraphQL)
+- **Database**: PostgreSQL or MongoDB
+- **Auth**: JWT-based, role-based access control
+- **File Storage**: For research uploads (cloud storage or local for MVP)
+- **Notifications**: Email (SMTP or service), in-app
+- **Infrastructure**: Dockerized for local/dev, cloud-ready
+
+# Development Roadmap  
+- **MVP**:
+  - User registration/login (doctor, pharma, staff)
+  - Doctor timeslot management
+  - Pharma appointment booking
+  - Appointment management dashboard (doctor)
+  - Research upload (pharma) & library (doctor)
+  - Basic notifications
+  - Role-based access
+- **Future Enhancements**:
+  - Staff scheduling
+  - Analytics dashboards
+  - Messaging system
+  - Advanced notifications (SMS, push)
+  - Payment integration (for pharma)
+  - Research access controls (granular sharing)
+
+# Logical Dependency Chain
+- Auth & user roles → Doctor timeslot management → Pharma booking → Appointment dashboard → Research upload/library → Notifications → Staff/analytics/messaging (future)
+- Prioritize getting a working doctor-pharma appointment flow and research sharing in MVP.
+
+# Risks and Mitigations  
+- **Scheduling Complexity**: Use proven calendar libraries, start simple.
+- **Data Privacy**: Ensure secure file storage, access control.
+- **Payment Integration**: Use third-party payment provider for pharma.
+- **User Adoption**: Focus on intuitive UX for both roles.
+
+# Appendix  
+- Consider integrating with existing doctor scheduling tools in future.
+- Research file formats: PDF, images, video.
+- Accessibility: Ensure app is usable for all users.
+</PRD> 

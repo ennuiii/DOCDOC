@@ -1,0 +1,38 @@
+{
+  "name": "pharmadoc",
+  "version": "1.0.0",
+  "description": "A platform connecting pharmaceutical companies and doctors for appointments and research sharing",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "npm run dev --workspace=server",
+    "dev:client": "npm run dev --workspace=client",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "npm run build --workspace=client",
+    "build:server": "npm run build --workspace=server",
+    "start": "npm run start --workspace=server",
+    "test": "npm run test --workspace=server && npm run test --workspace=client",
+    "lint": "npm run lint --workspace=server && npm run lint --workspace=client",
+    "install:all": "npm install"
+  },
+  "keywords": [
+    "pharma",
+    "healthcare",
+    "appointments",
+    "doctors",
+    "research"
+  ],
+  "author": "Pharmadoc Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+} 

@@ -1,0 +1,38 @@
+services:
+  # Web service for the Node.js backend
+  - type: web
+    name: pharmadoc-api
+    runtime: node
+    repo: https://github.com/YOUR_GITHUB_USERNAME/pharmadoc
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MONGODB_URI
+        fromDatabase:
+          name: pharmadoc-db
+          property: connectionString
+    healthCheckPath: /api/health
+    
+  # Static site for the React frontend  
+  - type: web
+    name: pharmadoc-client
+    runtime: static
+    buildCommand: npm run build:client
+    staticPublishPath: ./client/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        value: https://pharmadoc-api.onrender.com
+
+databases:
+  # MongoDB database
+  - name: pharmadoc-db
+    databaseName: pharmadoc
+    user: pharmadoc_user 

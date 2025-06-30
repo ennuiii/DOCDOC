@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # MongoDB service
+  mongodb:
+    image: mongo:7
+    container_name: pharmadoc-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_DATABASE: pharmadoc
+    volumes:
+      - mongodb_data:/data/db
+      - ./server/scripts/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    networks:
+      - pharmadoc-network
+
+  # Backend service
+  backend:
+    build:
+      context: .
+      dockerfile: server/Dockerfile.dev
+    container_name: pharmadoc-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: development
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/pharmadoc?authSource=admin
+      JWT_SECRET: dev-secret-key-change-in-production
+      CLIENT_URL: http://localhost:3000
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+      - ./uploads:/app/uploads
+    depends_on:
+      - mongodb
+    networks:
+      - pharmadoc-network
+    command: npm run dev
+
+  # Frontend service
+  frontend:
+    build:
+      context: .
+      dockerfile: client/Dockerfile.dev
+    container_name: pharmadoc-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_API_URL: http://localhost:5000
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - pharmadoc-network
+    command: npm run dev
+
+volumes:
+  mongodb_data:
+  
+networks:
+  pharmadoc-network:
+    driver: bridge 
