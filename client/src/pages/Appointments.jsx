@@ -43,7 +43,7 @@ import { DatePicker } from '@mui/x-date-pickers';
 import dayjs from 'dayjs';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { useSnackbar } from 'notistack';
-import api from '../services/api';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 
 const Appointments = () => {
@@ -52,7 +52,10 @@ const Appointments = () => {
   const queryClient = useQueryClient();
   
   const [tabValue, setTabValue] = useState(0);
-  const [selectedDate, setSelectedDate] = useState(dayjs());
+  const [dateRange, setDateRange] = useState({
+    startDate: dayjs(),
+    endDate: dayjs().add(30, 'day') // Default to next 30 days for better appointment visibility
+  });
   const [openBookingDialog, setOpenBookingDialog] = useState(false);
   const [selectedTimeslot, setSelectedTimeslot] = useState(null);
   const [openDetailsDialog, setOpenDetailsDialog] = useState(false);
@@ -69,19 +72,114 @@ const Appointments = () => {
     meetingType: 'in-person',
   });
 
+  // Quick date filter functions
+  const setQuickDateFilter = (filter) => {
+    const today = dayjs();
+    
+    switch (filter) {
+      case 'today':
+        setDateRange({
+          startDate: today,
+          endDate: today
+        });
+        break;
+      case 'week':
+        setDateRange({
+          startDate: today,
+          endDate: today.add(7, 'day')
+        });
+        break;
+      case 'month':
+        setDateRange({
+          startDate: today,
+          endDate: today.add(1, 'month')
+        });
+        break;
+      default:
+        break;
+    }
+  };
+
+  // Set up real-time appointment updates
+  useEffect(() => {
+    const handleAppointmentUpdate = () => {
+      queryClient.invalidateQueries('appointments');
+      queryClient.invalidateQueries('available-timeslots');
+    };
+
+    const handleTimeslotUpdate = () => {
+      queryClient.invalidateQueries('available-timeslots');
+    };
+
+    // Listen for appointment updates
+    window.addEventListener('appointmentUpdate', handleAppointmentUpdate);
+    window.addEventListener('timeslotUpdate', handleTimeslotUpdate);
+
+    return () => {
+      window.removeEventListener('appointmentUpdate', handleAppointmentUpdate);
+      window.removeEventListener('timeslotUpdate', handleTimeslotUpdate);
+    };
+  }, [queryClient]);
+
   // Fetch available timeslots for pharma users
-  const { data: availableTimeslots, isLoading: loadingTimeslots } = useQuery(
-    ['available-timeslots', selectedDate.format('YYYY-MM-DD'), filters],
+  const { data: timeslotsData, isLoading: loadingTimeslots } = useQuery(
+    ['available-timeslots', dateRange.startDate.format('YYYY-MM-DD'), dateRange.endDate.format('YYYY-MM-DD'), filters],
     async () => {
       if (user?.role !== 'pharma') return { timeslots: [] };
       
-      const response = await api.get('/appointments/available-timeslots', {
-        params: {
-          date: selectedDate.format('YYYY-MM-DD'),
-          specialization: filters.specialization || undefined,
-        },
-      });
-      return response.data;
+      let query = supabase
+        .from('timeslots')
+        .select(`
+          *,
+          doctor:users!timeslots_doctor_id_fkey (
+            id,
+            first_name,
+            last_name,
+            specialization,
+            title,
+            clinic_name
+          )
+        `)
+        .gte('date', dateRange.startDate.format('YYYY-MM-DD'))
+        .lte('date', dateRange.endDate.format('YYYY-MM-DD'))
+        .eq('status', 'available');
+
+      const { data, error } = await query.order('date').order('start_time');
+      
+      if (error) {
+        console.error('Timeslots query error:', error);
+        throw error;
+      }
+      
+      let filteredData = (data || []).filter(timeslot => 
+        timeslot.current_bookings < timeslot.max_bookings
+      );
+      
+      // Apply specialization filter if provided
+      if (filters.specialization) {
+        filteredData = filteredData.filter(slot => 
+          slot.doctor?.specialization?.toLowerCase().includes(filters.specialization.toLowerCase())
+        );
+      }
+
+      // Apply doctor name filter if provided
+      if (filters.doctorName) {
+        filteredData = filteredData.filter(slot => {
+          const fullName = `${slot.doctor?.first_name || ''} ${slot.doctor?.last_name || ''}`.toLowerCase();
+          return fullName.includes(filters.doctorName.toLowerCase());
+        });
+      }
+      
+      // Add computed full_name for display
+      const timeslotsWithFullName = filteredData.map(timeslot => ({
+        ...timeslot,
+        doctor: {
+          ...timeslot.doctor,
+          full_name: `${timeslot.doctor?.first_name || ''} ${timeslot.doctor?.last_name || ''}`.trim() || timeslot.doctor?.email || 'Unknown Doctor'
+        }
+      }));
+      
+      return { timeslots: timeslotsWithFullName };
     },
     {
       enabled: tabValue === 0 && user?.role === 'pharma',
@@ -90,21 +188,194 @@ const Appointments = () => {
 
   // Fetch user's appointments
   const { data: appointmentsData, isLoading: loadingAppointments } = useQuery(
-    ['appointments', tabValue],
+    ['appointments', tabValue, dateRange.startDate.format('YYYY-MM-DD'), dateRange.endDate.format('YYYY-MM-DD')],
     async () => {
-      const status = tabValue === 1 ? 'scheduled,confirmed' : 'completed,cancelled';
-      const response = await api.get('/appointments', {
-        params: { status },
+      // Determine status list based on user role and tab
+    let statusList;
+    if (user?.role === 'pharma') {
+      // Pharma: Tab 1 = upcoming, Tab 2 = past
+      statusList = tabValue === 1 ? ['scheduled', 'confirmed'] : ['completed', 'cancelled'];
+    } else {
+      // Doctor: Tab 0 = upcoming, Tab 1 = past
+      statusList = tabValue === 0 ? ['scheduled', 'confirmed'] : ['completed', 'cancelled'];
+    }
+      
+      // First, get timeslots that match our date criteria
+      let timeslotQuery = supabase
+        .from('timeslots')
+        .select('id');
+      
+      // Determine if this is upcoming or past based on user role and tab
+      const isUpcoming = user?.role === 'pharma' ? tabValue === 1 : tabValue === 0;
+      
+      if (isUpcoming) {
+        // Upcoming appointments: filter by date range
+        timeslotQuery = timeslotQuery
+          .gte('date', dateRange.startDate.format('YYYY-MM-DD'))
+          .lte('date', dateRange.endDate.format('YYYY-MM-DD'));
+      } else {
+        // Past appointments: show appointments before today
+        timeslotQuery = timeslotQuery
+          .lte('date', dayjs().format('YYYY-MM-DD'));
+      }
+
+      const { data: timeslotIds, error: timeslotError } = await timeslotQuery;
+      
+      if (timeslotError) {
+        console.error('Timeslots query error:', timeslotError);
+        throw timeslotError;
+      }
+
+      const timeslotIdList = (timeslotIds || []).map(t => t.id);
+      
+      // If no timeslots match the date criteria, return empty appointments
+      if (timeslotIdList.length === 0) {
+        return { appointments: [] };
+      }
+
+      // Now get appointments that match the timeslot IDs and user criteria
+      const { data, error } = await supabase
+        .from('appointments')
+        .select(`
+          *,
+          timeslot:timeslots (
+            id,
+            date,
+            start_time,
+            end_time,
+            duration
+          ),
+          doctor:users!doctor_id (
+            id,
+            first_name,
+            last_name,
+            specialization,
+            title
+          ),
+          pharma_rep:users!pharma_rep_id (
+            id,
+            first_name,
+            last_name,
+            company_name
+          ),
+          products:appointment_products (
+            id,
+            name,
+            category,
+            description
+          )
+        `)
+        .in('status', statusList)
+        .in('timeslot_id', timeslotIdList)
+        .or(`doctor_id.eq.${user.id},pharma_rep_id.eq.${user.id}`);
+      
+      if (error) {
+        console.error('Appointments query error:', error);
+        throw error;
+      }
+      
+      // Debug logging
+      console.log('Appointments query result:', {
+        userRole: user?.role,
+        userId: user?.id,
+        statusList,
+        tabValue,
+        dateRange: {
+          start: dateRange.startDate.format('YYYY-MM-DD'),
+          end: dateRange.endDate.format('YYYY-MM-DD')
+        },
+        timeslotIdList: timeslotIdList.length,
+        appointmentsFound: (data || []).length,
+        appointments: data
       });
-      return response.data;
+      
+      // Add computed full_name for display
+      const appointmentsWithFullName = (data || []).map(appointment => ({
+        ...appointment,
+        doctor: appointment.doctor ? {
+          ...appointment.doctor,
+          full_name: `${appointment.doctor.first_name || ''} ${appointment.doctor.last_name || ''}`.trim() || 'Unknown Doctor'
+        } : null,
+        pharma_rep: appointment.pharma_rep ? {
+          ...appointment.pharma_rep,
+          full_name: `${appointment.pharma_rep.first_name || ''} ${appointment.pharma_rep.last_name || ''}`.trim() || 'Unknown Rep'
+        } : null
+      }));
+
+      // Sort appointments by date and time
+      const sortedAppointments = appointmentsWithFullName.sort((a, b) => {
+        const dateA = a.timeslot?.date || '';
+        const dateB = b.timeslot?.date || '';
+        const timeA = a.timeslot?.start_time || '';
+        const timeB = b.timeslot?.start_time || '';
+        
+        // For upcoming appointments, sort ascending (earliest first)
+        // For past appointments, sort descending (most recent first)
+        const isUpcomingTab = user?.role === 'pharma' ? tabValue === 1 : tabValue === 0;
+        const dateCompare = isUpcomingTab 
+          ? dateA.localeCompare(dateB) 
+          : dateB.localeCompare(dateA);
+        
+        if (dateCompare !== 0) return dateCompare;
+        
+        // If same date, sort by start time
+        return timeA.localeCompare(timeB);
+      });
+      
+      return { appointments: sortedAppointments };
     }
   );
 
   // Book appointment mutation
   const bookMutation = useMutation(
     async (data) => {
-      const response = await api.post('/appointments', data);
-      return response.data;
+      const { products, timeslotId, ...appointmentData } = data;
+      
+      // Start a transaction for appointment + products
+      const { data: appointment, error: appointmentError } = await supabase
+        .from('appointments')
+        .insert({
+          timeslot_id: timeslotId,
+          doctor_id: selectedTimeslot.doctor.id,
+          pharma_rep_id: user.id,
+          purpose: appointmentData.purpose,
+          notes: appointmentData.notes,
+          meeting_type: appointmentData.meetingType,
+          status: 'scheduled'
+        })
+        .select()
+        .single();
+      
+      if (appointmentError) throw appointmentError;
+      
+      // Insert products if any
+      if (products && products.length > 0) {
+        const productsToInsert = products.map(product => ({
+          appointment_id: appointment.id,
+          name: product.name || product,
+          category: product.category || 'other',
+          description: product.description || null
+        }));
+        
+        const { error: productsError } = await supabase
+          .from('appointment_products')
+          .insert(productsToInsert);
+        
+        if (productsError) throw productsError;
+      }
+      
+      // Update timeslot current_bookings
+      const { error: updateError } = await supabase
+        .from('timeslots')
+        .update({ 
+          current_bookings: selectedTimeslot.current_bookings + 1,
+          status: selectedTimeslot.current_bookings + 1 >= selectedTimeslot.max_bookings ? 'booked' : 'available'
+        })
+        .eq('id', timeslotId);
+      
+      if (updateError) throw updateError;
+      
+      return appointment;
     },
     {
       onSuccess: () => {
@@ -115,7 +386,7 @@ const Appointments = () => {
         setTabValue(1); // Switch to upcoming appointments
       },
       onError: (error) => {
-        enqueueSnackbar(error.response?.data?.error || 'Failed to book appointment', {
+        enqueueSnackbar(error.message || 'Failed to book appointment', {
           variant: 'error',
         });
       },
@@ -125,15 +396,48 @@ const Appointments = () => {
   // Cancel appointment mutation
   const cancelMutation = useMutation(
     async ({ id, reason }) => {
-      await api.delete(`/appointments/${id}`, { data: { reason } });
+      // Get appointment details first to update timeslot
+      const { data: appointment, error: getError } = await supabase
+        .from('appointments')
+        .select('timeslot_id, timeslot:timeslots(*)')
+        .eq('id', id)
+        .single();
+      
+      if (getError) throw getError;
+      
+      // Update appointment status and cancellation details
+      const { error: updateError } = await supabase
+        .from('appointments')
+        .update({ 
+          status: 'cancelled',
+          cancellation_reason: reason,
+          cancelled_by_id: user.id,
+          cancelled_at: new Date().toISOString()
+        })
+        .eq('id', id);
+      
+      if (updateError) throw updateError;
+      
+      // Update timeslot availability
+      const newBookingCount = Math.max(0, appointment.timeslot.current_bookings - 1);
+      const { error: timeslotError } = await supabase
+        .from('timeslots')
+        .update({
+          current_bookings: newBookingCount,
+          status: newBookingCount < appointment.timeslot.max_bookings ? 'available' : 'booked'
+        })
+        .eq('id', appointment.timeslot_id);
+      
+      if (timeslotError) throw timeslotError;
     },
     {
       onSuccess: () => {
         queryClient.invalidateQueries('appointments');
+        queryClient.invalidateQueries('available-timeslots');
         enqueueSnackbar('Appointment cancelled successfully', { variant: 'success' });
       },
       onError: (error) => {
-        enqueueSnackbar(error.response?.data?.error || 'Failed to cancel appointment', {
+        enqueueSnackbar(error.message || 'Failed to cancel appointment', {
           variant: 'error',
         });
       },
@@ -163,7 +467,7 @@ const Appointments = () => {
     }
 
     bookMutation.mutate({
-      timeslotId: selectedTimeslot._id,
+      timeslotId: selectedTimeslot.id,
       ...bookingForm,
     });
   };
@@ -215,7 +519,7 @@ const Appointments = () => {
     }
   };
 
-  const timeslots = availableTimeslots?.timeslots || [];
+  const timeslots = timeslotsData?.timeslots || [];
   const appointments = appointmentsData?.appointments || [];
 
   return (
@@ -235,12 +539,56 @@ const Appointments = () => {
       {/* Book Appointment Tab (Pharma only) */}
       {tabValue === 0 && user?.role === 'pharma' && (
         <Box>
-          <Box display="flex" gap={2} mb={3}>
+          {/* Current Date Range Display */}
+          <Paper sx={{ p: 2, mb: 2, bgcolor: 'primary.light', color: 'primary.contrastText' }}>
+            <Typography variant="h6" display="flex" alignItems="center" gap={1}>
+              <CalendarIcon />
+              Viewing appointments from {dateRange.startDate.format('MMM D, YYYY')} to {dateRange.endDate.format('MMM D, YYYY')}
+              {dateRange.startDate.isSame(dateRange.endDate, 'day') && (
+                <Chip label="Single Day" size="small" sx={{ bgcolor: 'primary.dark', color: 'primary.contrastText' }} />
+              )}
+            </Typography>
+          </Paper>
+
+          {/* Quick Date Filters */}
+          <Box display="flex" gap={1} mb={2} flexWrap="wrap">
+            <Button
+              variant={dateRange.startDate.isSame(dayjs(), 'day') && dateRange.endDate.isSame(dayjs(), 'day') ? 'contained' : 'outlined'}
+              onClick={() => setQuickDateFilter('today')}
+              size="small"
+            >
+              Today
+            </Button>
+            <Button
+              variant={dateRange.startDate.isSame(dayjs(), 'day') && dateRange.endDate.isSame(dayjs().add(7, 'day'), 'day') ? 'contained' : 'outlined'}
+              onClick={() => setQuickDateFilter('week')}
+              size="small"
+            >
+              This Week
+            </Button>
+            <Button
+              variant={dateRange.startDate.isSame(dayjs(), 'day') && dateRange.endDate.isSame(dayjs().add(1, 'month'), 'day') ? 'contained' : 'outlined'}
+              onClick={() => setQuickDateFilter('month')}
+              size="small"
+            >
+              This Month
+            </Button>
+          </Box>
+
+          {/* Date Range and Other Filters */}
+          <Box display="flex" gap={2} mb={3} flexWrap="wrap">
             <DatePicker
-              label="Select Date"
-              value={selectedDate}
-              onChange={setSelectedDate}
+              label="Start Date"
+              value={dateRange.startDate}
+              onChange={(newDate) => setDateRange({ ...dateRange, startDate: newDate })}
               minDate={dayjs()}
+              renderInput={(params) => <TextField {...params} />}
+            />
+            <DatePicker
+              label="End Date"
+              value={dateRange.endDate}
+              onChange={(newDate) => setDateRange({ ...dateRange, endDate: newDate })}
+              minDate={dateRange.startDate}
               renderInput={(params) => <TextField {...params} />}
             />
             <TextField
@@ -248,8 +596,25 @@ const Appointments = () => {
               value={filters.specialization}
               onChange={(e) => setFilters({ ...filters, specialization: e.target.value })}
               sx={{ minWidth: 200 }}
+              placeholder="e.g. Cardiology, Dermatology"
+            />
+            <TextField
+              label="Filter by Doctor Name"
+              value={filters.doctorName}
+              onChange={(e) => setFilters({ ...filters, doctorName: e.target.value })}
+              sx={{ minWidth: 200 }}
+              placeholder="e.g. John Smith"
             />
           </Box>
+
+          {/* Results Summary */}
+          {!loadingTimeslots && timeslots.length > 0 && (
+            <Box mb={2}>
+              <Typography variant="body2" color="text.secondary">
+                Found {timeslots.length} available timeslot{timeslots.length !== 1 ? 's' : ''} in your selected date range
+              </Typography>
+            </Box>
+          )}
 
           <Grid container spacing={3}>
             {loadingTimeslots ? (
@@ -259,19 +624,19 @@ const Appointments = () => {
             ) : timeslots.length === 0 ? (
               <Grid item xs={12}>
                 <Alert severity="info">
-                  No available timeslots found for {selectedDate.format('MMMM D, YYYY')}
+                  No available timeslots found from {dateRange.startDate.format('MMM D, YYYY')} to {dateRange.endDate.format('MMM D, YYYY')}
                 </Alert>
               </Grid>
             ) : (
               timeslots.map((slot) => (
-                <Grid item xs={12} sm={6} md={4} key={slot._id}>
+                <Grid item xs={12} sm={6} md={4} key={slot.id}>
                   <Card>
                     <CardContent>
                       <Typography variant="h6">
-                        Dr. {slot.doctor.profile.firstName} {slot.doctor.profile.lastName}
+                        {slot.doctor.title ? `${slot.doctor.title} ` : 'Dr. '}{slot.doctor.full_name}
                       </Typography>
                       <Typography variant="body2" color="text.secondary" gutterBottom>
-                        {slot.doctor.profile.specialization} • {slot.doctor.profile.clinicName}
+                        {slot.doctor.specialization} {slot.doctor.clinic_name && `• ${slot.doctor.clinic_name}`}
                       </Typography>
                       <Divider sx={{ my: 1 }} />
                       <Box display="flex" alignItems="center" gap={1}>
@@ -281,7 +646,10 @@ const Appointments = () => {
                         </Typography>
                       </Box>
                       <Typography variant="h6" sx={{ mt: 1 }}>
-                        {slot.startTime} - {slot.endTime}
+                        {slot.start_time} - {slot.end_time}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        Available slots: {slot.max_bookings - slot.current_bookings}
                       </Typography>
                       <Button
                         variant="contained"
@@ -301,8 +669,64 @@ const Appointments = () => {
       )}
 
       {/* Upcoming Appointments Tab */}
-      {((tabValue === 1 && user?.role === 'pharma') || (tabValue === 0 && user?.role !== 'pharma')) && (
-        <List>
+      {((tabValue === 1 && user?.role === 'pharma') || (tabValue === 0 && user?.role === 'doctor')) && (
+        <Box>
+          {/* Date Range Controls for Doctors */}
+          {user?.role === 'doctor' && (
+            <>
+              {/* Current Date Range Display */}
+              <Paper sx={{ p: 2, mb: 2, bgcolor: 'primary.light', color: 'primary.contrastText' }}>
+                <Typography variant="h6" display="flex" alignItems="center" gap={1}>
+                  <CalendarIcon />
+                  Viewing appointments from {dateRange.startDate.format('MMM D, YYYY')} to {dateRange.endDate.format('MMM D, YYYY')}
+                </Typography>
+              </Paper>
+
+              {/* Quick Date Filters */}
+              <Box display="flex" gap={1} mb={2} flexWrap="wrap">
+                <Button
+                  variant={dateRange.startDate.isSame(dayjs(), 'day') && dateRange.endDate.isSame(dayjs(), 'day') ? 'contained' : 'outlined'}
+                  onClick={() => setQuickDateFilter('today')}
+                  size="small"
+                >
+                  Today
+                </Button>
+                <Button
+                  variant={dateRange.startDate.isSame(dayjs(), 'day') && dateRange.endDate.isSame(dayjs().add(7, 'day'), 'day') ? 'contained' : 'outlined'}
+                  onClick={() => setQuickDateFilter('week')}
+                  size="small"
+                >
+                  This Week
+                </Button>
+                <Button
+                  variant={dateRange.startDate.isSame(dayjs(), 'day') && dateRange.endDate.isSame(dayjs().add(1, 'month'), 'day') ? 'contained' : 'outlined'}
+                  onClick={() => setQuickDateFilter('month')}
+                  size="small"
+                >
+                  This Month
+                </Button>
+              </Box>
+
+              {/* Date Range Pickers */}
+              <Box display="flex" gap={2} mb={3} flexWrap="wrap">
+                <DatePicker
+                  label="Start Date"
+                  value={dateRange.startDate}
+                  onChange={(newDate) => setDateRange({ ...dateRange, startDate: newDate })}
+                  renderInput={(params) => <TextField {...params} />}
+                />
+                <DatePicker
+                  label="End Date"
+                  value={dateRange.endDate}
+                  onChange={(newDate) => setDateRange({ ...dateRange, endDate: newDate })}
+                  minDate={dateRange.startDate}
+                  renderInput={(params) => <TextField {...params} />}
+                />
+              </Box>
+            </>
+          )}
+
+          <List>
           {loadingAppointments ? (
             <ListItem>
               <ListItemText primary="Loading appointments..." />
@@ -315,15 +739,15 @@ const Appointments = () => {
             appointments
               .filter(apt => ['scheduled', 'confirmed'].includes(apt.status))
               .map((appointment) => (
-                <Paper key={appointment._id} sx={{ mb: 2 }}>
+                <Paper key={appointment.id} sx={{ mb: 2 }}>
                   <ListItem>
                     <ListItemText
                       primary={
                         <Box display="flex" alignItems="center" gap={1}>
                           <Typography variant="h6">
                             {user?.role === 'pharma' 
-                              ? `Dr. ${appointment.doctor.profile.firstName} ${appointment.doctor.profile.lastName}`
-                              : `${appointment.pharmaRep.profile.firstName} ${appointment.pharmaRep.profile.lastName} - ${appointment.pharmaRep.profile.companyName}`
+                              ? `Dr. ${appointment.doctor.full_name}`
+                              : `${appointment.pharma_rep.full_name} - ${appointment.pharma_rep.company_name}`
                             }
                           </Typography>
                           <Chip
@@ -336,15 +760,15 @@ const Appointments = () => {
                       secondary={
                         <Box>
                           <Typography variant="body2">
-                            {dayjs(appointment.timeslot.date).format('MMMM D, YYYY')} at {appointment.timeslot.startTime}
+                            {dayjs(appointment.timeslot.date).format('MMMM D, YYYY')} at {appointment.timeslot.start_time}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
                             Purpose: {appointment.purpose}
                           </Typography>
                           <Box display="flex" alignItems="center" gap={0.5} mt={0.5}>
-                            {getMeetingIcon(appointment.meetingType)}
+                            {getMeetingIcon(appointment.meeting_type)}
                             <Typography variant="caption">
-                              {appointment.meetingType.charAt(0).toUpperCase() + appointment.meetingType.slice(1)}
+                              {appointment.meeting_type.charAt(0).toUpperCase() + appointment.meeting_type.slice(1)}
                             </Typography>
                           </Box>
                         </Box>
@@ -357,7 +781,7 @@ const Appointments = () => {
                       {appointment.status === 'scheduled' && (
                         <IconButton
                           color="error"
-                          onClick={() => handleCancelAppointment(appointment._id)}
+                          onClick={() => handleCancelAppointment(appointment.id)}
                         >
                           <CancelIcon />
                         </IconButton>
@@ -367,11 +791,12 @@ const Appointments = () => {
                 </Paper>
               ))
           )}
-        </List>
+          </List>
+        </Box>
       )}
 
       {/* Past Appointments Tab */}
-      {((tabValue === 2 && user?.role === 'pharma') || (tabValue === 1 && user?.role !== 'pharma')) && (
+      {((tabValue === 2 && user?.role === 'pharma') || (tabValue === 1 && user?.role === 'doctor')) && (
         <List>
           {loadingAppointments ? (
             <ListItem>
@@ -385,15 +810,15 @@ const Appointments = () => {
             appointments
               .filter(apt => ['completed', 'cancelled'].includes(apt.status))
               .map((appointment) => (
-                <Paper key={appointment._id} sx={{ mb: 2 }}>
+                <Paper key={appointment.id} sx={{ mb: 2 }}>
                   <ListItem>
                     <ListItemText
                       primary={
                         <Box display="flex" alignItems="center" gap={1}>
                           <Typography variant="h6">
                             {user?.role === 'pharma' 
-                              ? `Dr. ${appointment.doctor.profile.firstName} ${appointment.doctor.profile.lastName}`
-                              : `${appointment.pharmaRep.profile.firstName} ${appointment.pharmaRep.profile.lastName}`
+                              ? `Dr. ${appointment.doctor.full_name}`
+                              : `${appointment.pharma_rep.full_name}`
                             }
                           </Typography>
                           <Chip
@@ -406,7 +831,7 @@ const Appointments = () => {
                       secondary={
                         <Box>
                           <Typography variant="body2">
-                            {dayjs(appointment.timeslot.date).format('MMMM D, YYYY')} at {appointment.timeslot.startTime}
+                            {dayjs(appointment.timeslot.date).format('MMMM D, YYYY')} at {appointment.timeslot.start_time}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
                             Purpose: {appointment.purpose}
@@ -441,13 +866,21 @@ const Appointments = () => {
           {selectedTimeslot && (
             <Box sx={{ mb: 3 }}>
               <Typography variant="subtitle1" gutterBottom>
-                <strong>Doctor:</strong> Dr. {selectedTimeslot.doctor.profile.firstName} {selectedTimeslot.doctor.profile.lastName}
+                <strong>Doctor:</strong> {selectedTimeslot.doctor.title ? `${selectedTimeslot.doctor.title} ` : 'Dr. '}{selectedTimeslot.doctor.full_name}
               </Typography>
               <Typography variant="body2" gutterBottom>
-                <strong>Specialization:</strong> {selectedTimeslot.doctor.profile.specialization}
+                <strong>Specialization:</strong> {selectedTimeslot.doctor.specialization}
+              </Typography>
+              {selectedTimeslot.doctor.clinic_name && (
+                <Typography variant="body2" gutterBottom>
+                  <strong>Clinic:</strong> {selectedTimeslot.doctor.clinic_name}
+                </Typography>
+              )}
+              <Typography variant="body2" gutterBottom>
+                <strong>Date & Time:</strong> {dayjs(selectedTimeslot.date).format('MMMM D, YYYY')} at {selectedTimeslot.start_time} - {selectedTimeslot.end_time}
               </Typography>
               <Typography variant="body2" gutterBottom>
-                <strong>Date & Time:</strong> {dayjs(selectedTimeslot.date).format('MMMM D, YYYY')} at {selectedTimeslot.startTime} - {selectedTimeslot.endTime}
+                <strong>Duration:</strong> {selectedTimeslot.duration || 30} minutes
               </Typography>
             </Box>
           )}
@@ -513,25 +946,25 @@ const Appointments = () => {
               
               <Typography variant="subtitle2" gutterBottom>Doctor</Typography>
               <Typography variant="body1" paragraph>
-                Dr. {selectedAppointment.doctor.profile.firstName} {selectedAppointment.doctor.profile.lastName}
+                Dr. {selectedAppointment.doctor.full_name}
                 <br />
-                {selectedAppointment.doctor.profile.specialization} • {selectedAppointment.doctor.profile.clinicName}
+                {selectedAppointment.doctor.specialization} • {selectedAppointment.doctor.title}
               </Typography>
               
               {user?.role === 'doctor' && (
                 <>
                   <Typography variant="subtitle2" gutterBottom>Pharma Representative</Typography>
                   <Typography variant="body1" paragraph>
-                    {selectedAppointment.pharmaRep.profile.firstName} {selectedAppointment.pharmaRep.profile.lastName}
+                    {selectedAppointment.pharma_rep.full_name}
                     <br />
-                    {selectedAppointment.pharmaRep.profile.companyName}
+                    {selectedAppointment.pharma_rep.company_name}
                   </Typography>
                 </>
               )}
               
               <Typography variant="subtitle2" gutterBottom>Date & Time</Typography>
               <Typography variant="body1" paragraph>
-                {dayjs(selectedAppointment.timeslot.date).format('MMMM D, YYYY')} at {selectedAppointment.timeslot.startTime}
+                {dayjs(selectedAppointment.timeslot.date).format('MMMM D, YYYY')} at {selectedAppointment.timeslot.start_time}
               </Typography>
               
               <Typography variant="subtitle2" gutterBottom>Purpose</Typography>
@@ -541,9 +974,9 @@ const Appointments = () => {
               
               <Typography variant="subtitle2" gutterBottom>Meeting Type</Typography>
               <Box display="flex" alignItems="center" gap={1} paragraph>
-                {getMeetingIcon(selectedAppointment.meetingType)}
+                {getMeetingIcon(selectedAppointment.meeting_type)}
                 <Typography variant="body1">
-                  {selectedAppointment.meetingType.charAt(0).toUpperCase() + selectedAppointment.meetingType.slice(1)}
+                  {selectedAppointment.meeting_type.charAt(0).toUpperCase() + selectedAppointment.meeting_type.slice(1)}
                 </Typography>
               </Box>
               
@@ -556,11 +989,11 @@ const Appointments = () => {
                 </>
               )}
               
-              {selectedAppointment.cancellationReason && (
+              {selectedAppointment.cancellation_reason && (
                 <>
                   <Typography variant="subtitle2" gutterBottom>Cancellation Reason</Typography>
                   <Typography variant="body1" paragraph color="error">
-                    {selectedAppointment.cancellationReason}
+                    {selectedAppointment.cancellation_reason}
                   </Typography>
                 </>
               )}
