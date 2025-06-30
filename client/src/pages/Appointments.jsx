@@ -73,6 +73,9 @@ const Appointments = () => {
   });
   
   const [processingAppointment, setProcessingAppointment] = useState(null);
+  const [openCancelDialog, setOpenCancelDialog] = useState(false);
+  const [appointmentToCancel, setAppointmentToCancel] = useState(null);
+  const [cancellationReason, setCancellationReason] = useState('');
 
   // Quick date filter functions
   const setQuickDateFilter = (filter) => {
@@ -559,10 +562,28 @@ const Appointments = () => {
   };
 
   const handleCancelAppointment = (appointmentId) => {
-    const reason = window.prompt('Please provide a reason for cancellation:');
-    if (reason) {
-      cancelMutation.mutate({ id: appointmentId, reason });
+    setAppointmentToCancel(appointmentId);
+    setOpenCancelDialog(true);
+  };
+
+  const handleCloseCancelDialog = () => {
+    setOpenCancelDialog(false);
+    setAppointmentToCancel(null);
+    setCancellationReason('');
+  };
+
+  const handleConfirmCancellation = () => {
+    if (!cancellationReason.trim()) {
+      enqueueSnackbar('Please provide a reason for cancellation', { variant: 'error' });
+      return;
     }
+
+    cancelMutation.mutate({ 
+      id: appointmentToCancel, 
+      reason: cancellationReason.trim() 
+    });
+    
+    handleCloseCancelDialog();
   };
 
   const handleConfirmAppointment = (appointmentId) => {
@@ -1126,11 +1147,8 @@ const Appointments = () => {
           {['scheduled', 'confirmed'].includes(selectedAppointment?.status) && (
             <Button 
               onClick={() => {
-                const reason = window.prompt('Please provide a reason for cancellation:');
-                if (reason) {
-                  cancelMutation.mutate({ id: selectedAppointment.id, reason });
-                  handleCloseDetailsDialog();
-                }
+                handleCancelAppointment(selectedAppointment.id);
+                handleCloseDetailsDialog();
               }}
               variant="outlined"
               color="error"
@@ -1142,6 +1160,47 @@ const Appointments = () => {
           )}
           
           <Button onClick={handleCloseDetailsDialog}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Cancellation Reason Dialog */}
+      <Dialog open={openCancelDialog} onClose={handleCloseCancelDialog} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <CancelIcon color="error" />
+          Cancel Appointment
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" paragraph>
+            Please provide a reason for cancelling this appointment. This will be shared with the other party.
+          </Typography>
+          <TextField
+            autoFocus
+            label="Cancellation Reason"
+            multiline
+            rows={4}
+            fullWidth
+            value={cancellationReason}
+            onChange={(e) => setCancellationReason(e.target.value)}
+            placeholder="e.g., Emergency came up, Schedule conflict, Need to reschedule..."
+            variant="outlined"
+            sx={{ mt: 2 }}
+            helperText={`${cancellationReason.length}/500 characters`}
+            inputProps={{ maxLength: 500 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseCancelDialog} color="inherit">
+            Keep Appointment
+          </Button>
+          <Button 
+            onClick={handleConfirmCancellation}
+            variant="contained"
+            color="error"
+            startIcon={<CancelIcon />}
+            disabled={!cancellationReason.trim() || cancelMutation.isLoading}
+          >
+            {cancelMutation.isLoading ? 'Cancelling...' : 'Cancel Appointment'}
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>
