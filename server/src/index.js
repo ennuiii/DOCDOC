@@ -1,12 +1,22 @@
+// Load environment variables FIRST
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+// Get __dirname equivalent in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Configure dotenv before any other imports
+dotenv.config({ path: join(__dirname, '../.env') });
+
+// Now import everything else
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
-import dotenv from 'dotenv';
 import mongoose from 'mongoose';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
 
 // Import routes
 import authRoutes from './routes/auth.js';
@@ -19,13 +29,6 @@ import notificationRoutes from './routes/notifications.js';
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFound } from './middleware/notFound.js';
-
-// Get __dirname equivalent in ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Load environment variables
-dotenv.config({ path: join(__dirname, '../../.env') });
 
 // Create Express app
 const app = express();
