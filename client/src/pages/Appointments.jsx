@@ -398,10 +398,15 @@ const Appointments = () => {
   // Cancel appointment mutation
   const cancelMutation = useMutation(
     async ({ id, reason }) => {
-      // Get appointment details first to update timeslot
+      // Get appointment details first to update timeslot and send notifications
       const { data: appointment, error: getError } = await supabase
         .from('appointments')
-        .select('timeslot_id, timeslot:timeslots(*)')
+        .select(`
+          *,
+          timeslot:timeslots(*),
+          doctor:users!doctor_id(id, first_name, last_name, email),
+          pharma_rep:users!pharma_rep_id(id, first_name, last_name, email, company_name)
+        `)
         .eq('id', id)
         .single();
       
@@ -431,11 +436,44 @@ const Appointments = () => {
         .eq('id', appointment.timeslot_id);
       
       if (timeslotError) throw timeslotError;
+      
+      // Create notification for the other party
+      const otherParty = user.role === 'doctor' ? appointment.pharma_rep : appointment.doctor;
+      const cancellerName = user.role === 'doctor' 
+        ? `Dr. ${user.first_name} ${user.last_name}`
+        : `${user.first_name} ${user.last_name}`;
+      
+      const { error: notificationError } = await supabase
+        .from('notifications')
+        .insert({
+          recipient_id: otherParty.id,
+          type: 'appointment-cancelled',
+          title: 'Appointment Cancelled',
+          message: `Your appointment on ${dayjs(appointment.timeslot.date).format('MMMM D, YYYY')} at ${appointment.timeslot.start_time} has been cancelled by ${cancellerName}.`,
+          data: {
+            appointment_id: appointment.id,
+            cancelled_by: user.role,
+            cancellation_reason: reason,
+            appointment_date: appointment.timeslot.date,
+            appointment_time: appointment.timeslot.start_time,
+            link: '/appointments'
+          },
+          priority: 'medium'
+        });
+      
+      if (notificationError) console.error('Failed to create notification:', notificationError);
+      
+      return appointment;
     },
     {
       onSuccess: () => {
         queryClient.invalidateQueries('appointments');
         queryClient.invalidateQueries('available-timeslots');
+        // Also invalidate dashboard queries so they update immediately
+        queryClient.invalidateQueries('dashboard-stats');
+        queryClient.invalidateQueries(['today-appointments']);
+        queryClient.invalidateQueries('upcoming-appointments');
+        queryClient.invalidateQueries('notifications'); // Refresh notifications for real-time updates
         enqueueSnackbar('Appointment cancelled successfully', { variant: 'success' });
       },
       onError: (error) => {
@@ -830,7 +868,7 @@ const Appointments = () => {
                           <ConfirmIcon />
                         </IconButton>
                       )}
-                      {appointment.status === 'scheduled' && (
+                      {['scheduled', 'confirmed'].includes(appointment.status) && (
                         <IconButton
                           color="error"
                           onClick={() => handleCancelAppointment(appointment.id)}
@@ -1053,46 +1091,56 @@ const Appointments = () => {
               
               {selectedAppointment.cancellation_reason && (
                 <>
-                  <Typography variant="subtitle2" gutterBottom>Cancellation Reason</Typography>
+                  <Typography variant="subtitle2" gutterBottom>Cancellation Information</Typography>
                   <Typography variant="body1" paragraph color="error">
-                    {selectedAppointment.cancellation_reason}
+                    <strong>Reason:</strong> {selectedAppointment.cancellation_reason}
                   </Typography>
+                  {selectedAppointment.cancelled_at && (
+                    <Typography variant="body2" color="text.secondary" paragraph>
+                      Cancelled on {dayjs(selectedAppointment.cancelled_at).format('MMMM D, YYYY [at] h:mm A')}
+                    </Typography>
+                  )}
                 </>
               )}
             </Box>
           )}
         </DialogContent>
         <DialogActions>
+          {/* Confirm button - only for doctors with scheduled appointments */}
           {selectedAppointment?.status === 'scheduled' && user?.role === 'doctor' && (
-            <>
-              <Button 
-                onClick={() => {
-                  handleConfirmAppointment(selectedAppointment.id);
-                  handleCloseDetailsDialog();
-                }}
-                variant="contained"
-                color="success"
-                startIcon={<ConfirmIcon />}
-                disabled={processingAppointment === selectedAppointment.id}
-              >
-                Confirm
-              </Button>
-              <Button 
-                onClick={() => {
-                  const reason = window.prompt('Please provide a reason for cancellation:');
-                  if (reason) {
-                    cancelMutation.mutate({ id: selectedAppointment.id, reason });
-                    handleCloseDetailsDialog();
-                  }
-                }}
-                variant="outlined"
-                color="error"
-                startIcon={<CancelIcon />}
-              >
-                Cancel
-              </Button>
-            </>
+            <Button 
+              onClick={() => {
+                handleConfirmAppointment(selectedAppointment.id);
+                handleCloseDetailsDialog();
+              }}
+              variant="contained"
+              color="success"
+              startIcon={<ConfirmIcon />}
+              disabled={processingAppointment === selectedAppointment.id}
+            >
+              Confirm
+            </Button>
           )}
+          
+          {/* Cancel button - for both doctors and pharma users with scheduled/confirmed appointments */}
+          {['scheduled', 'confirmed'].includes(selectedAppointment?.status) && (
+            <Button 
+              onClick={() => {
+                const reason = window.prompt('Please provide a reason for cancellation:');
+                if (reason) {
+                  cancelMutation.mutate({ id: selectedAppointment.id, reason });
+                  handleCloseDetailsDialog();
+                }
+              }}
+              variant="outlined"
+              color="error"
+              startIcon={<CancelIcon />}
+              disabled={cancelMutation.isLoading}
+            >
+              Cancel Appointment
+            </Button>
+          )}
+          
           <Button onClick={handleCloseDetailsDialog}>Close</Button>
         </DialogActions>
       </Dialog>
