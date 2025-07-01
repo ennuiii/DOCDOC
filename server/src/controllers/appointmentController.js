@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import NotificationService from '../services/notificationService.js';
+import { VideoLinkGenerationService } from '../integrations/services/VideoLinkGenerationService.js';
 
 // Get appointments with filters
 export const getAppointments = async (req, res) => {
@@ -195,7 +196,11 @@ export const createAppointment = async (req, res) => {
       purpose,
       products,
       notes,
-      meetingType
+      meetingType,
+      videoProvider,
+      meetingAccess,
+      allowRecording,
+      requirePassword
     } = req.body;
     
     // Only pharma reps can book appointments
@@ -247,6 +252,36 @@ export const createAppointment = async (req, res) => {
       console.error('Create appointment error:', appointmentError);
       throw appointmentError;
     }
+
+    // Generate video meeting link if this is a virtual meeting
+    let videoMeetingResult = null;
+    if (meetingType === 'virtual') {
+      try {
+        const videoLinkService = new VideoLinkGenerationService();
+        const bookingForm = {
+          meetingType,
+          videoProvider: videoProvider || 'google-meet',
+          meetingAccess: meetingAccess || 'open',
+          allowRecording: allowRecording || false,
+          requirePassword: requirePassword || false,
+          notes
+        };
+        
+        videoMeetingResult = await videoLinkService.generateVideoLinkForAppointment(
+          appointment,
+          bookingForm,
+          req.user.id
+        );
+        
+        if (videoMeetingResult && !videoMeetingResult.success) {
+          console.warn('Video link generation failed:', videoMeetingResult.error);
+          // Don't fail the appointment creation, just log the warning
+        }
+      } catch (videoError) {
+        console.error('Video link generation error:', videoError);
+        // Don't fail the appointment creation for video link issues
+      }
+    }
     
     // Add products if provided
     if (products && products.length > 0) {
@@ -272,10 +307,14 @@ export const createAppointment = async (req, res) => {
       .eq('id', timeslotId);
     
     // Create notification for doctor
+    const notificationMessage = meetingType === 'virtual' && videoMeetingResult?.success
+      ? `${req.user.first_name} ${req.user.last_name} from ${req.user.company_name} has booked a virtual appointment for ${timeslot.date} at ${timeslot.start_time}. Video meeting link has been generated.`
+      : `${req.user.first_name} ${req.user.last_name} from ${req.user.company_name} has booked an appointment for ${timeslot.date} at ${timeslot.start_time}.`;
+      
     await NotificationService.createNotification({
       recipientId: timeslot.doctor_id,
       title: 'New Appointment Booked',
-      message: `${req.user.first_name} ${req.user.last_name} from ${req.user.company_name} has booked an appointment for ${timeslot.date} at ${timeslot.start_time}.`,
+      message: notificationMessage,
       type: 'appointment_created',
       priority: 'medium',
       data: {
@@ -285,14 +324,31 @@ export const createAppointment = async (req, res) => {
         date: timeslot.date,
         time: timeslot.start_time,
         purpose,
+        meetingType,
+        videoMeeting: videoMeetingResult?.success || false,
         link: `/appointments`
       }
     });
-    
-    res.status(201).json({
+
+    // Prepare response
+    const response = {
       message: 'Appointment booked successfully',
       appointment
-    });
+    };
+
+    // Include video meeting information if successful
+    if (videoMeetingResult?.success) {
+      response.videoMeeting = {
+        provider: videoMeetingResult.provider,
+        joinUrl: videoMeetingResult.joinUrl,
+        fallbackUsed: videoMeetingResult.fallbackUsed
+      };
+      response.message += ` Video meeting link generated with ${videoMeetingResult.provider}.`;
+    } else if (meetingType === 'virtual' && videoMeetingResult && !videoMeetingResult.success) {
+      response.warning = `Appointment created but video link generation failed: ${videoMeetingResult.error}`;
+    }
+    
+    res.status(201).json(response);
   } catch (error) {
     console.error('Create appointment error:', error);
     res.status(500).json({ 

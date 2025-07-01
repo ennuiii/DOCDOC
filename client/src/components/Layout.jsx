@@ -26,6 +26,7 @@ import {
   Science as ResearchIcon,
   Person as PersonIcon,
   Logout as LogoutIcon,
+  SettingsEthernet as IntegrationIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../hooks/useAuth';
 import RealtimeNotifications from './RealtimeNotifications';
@@ -66,6 +67,7 @@ const Layout = ({ children }) => {
 
   const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', roles: ['doctor', 'pharma', 'admin'] },
+    { text: 'Integrations', icon: <IntegrationIcon />, path: '/integrations', roles: ['doctor', 'pharma', 'admin'] },
     { text: 'Timeslots', icon: <CalendarIcon />, path: '/timeslots', roles: ['doctor', 'staff'] },
     { text: 'Appointments', icon: <AppointmentIcon />, path: '/appointments', roles: ['doctor', 'pharma', 'staff'] },
     { text: 'Research', icon: <ResearchIcon />, path: '/research', roles: ['doctor', 'pharma'] },

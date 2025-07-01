@@ -19,7 +19,11 @@ import Profile from './pages/Profile';
 import Appointments from './pages/Appointments';
 import Timeslots from './pages/Timeslots';
 import Research from './pages/Research';
+import Integrations from './pages/Integrations';
 import NotFound from './pages/NotFound';
+
+// Integration components
+import OAuthCallback from './components/integrations/OAuthCallback';
 
 // Create theme
 const theme = createTheme({
@@ -84,6 +88,7 @@ function App() {
                 <Routes>
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
+                  <Route path="/integrations/callback" element={<OAuthCallback />} />
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   
                   {/* Protected routes with Layout */}
@@ -119,6 +124,13 @@ function App() {
                     <PrivateRoute>
                       <Layout>
                         <Research />
+                      </Layout>
+                    </PrivateRoute>
+                  } />
+                  <Route path="/integrations" element={
+                    <PrivateRoute>
+                      <Layout>
+                        <Integrations />
                       </Layout>
                     </PrivateRoute>
                   } />

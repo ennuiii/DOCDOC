@@ -25,6 +25,7 @@ import timeslotRoutes from './routes/timeslots.js';
 import appointmentRoutes from './routes/appointments.js';
 import researchRoutes from './routes/research.js';
 import notificationRoutes from './routes/notifications.js';
+import integrationRoutes from './routes/integrations.js';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js';
@@ -83,6 +84,7 @@ app.use('/api/timeslots', timeslotRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/research', researchRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/integrations', integrationRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

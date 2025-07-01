@@ -28,6 +28,7 @@ import {
   Divider,
   Autocomplete,
   Rating,
+  Checkbox,
 } from '@mui/material';
 import {
   CalendarMonth as CalendarIcon,
@@ -38,6 +39,11 @@ import {
   LocationOn as LocationIcon,
   VideoCall as VideoIcon,
   Phone as PhoneIcon,
+  Google as GoogleIcon,
+  Microsoft as MicrosoftIcon,
+  Videocam as ZoomIcon,
+  Security as SecurityIcon,
+  Lock as LockIcon,
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers';
 import dayjs from 'dayjs';
@@ -70,6 +76,10 @@ const Appointments = () => {
     products: [],
     notes: '',
     meetingType: 'in-person',
+    videoProvider: 'google-meet', // Default video provider
+    meetingAccess: 'open', // open, restricted, approval-required
+    allowRecording: false,
+    requirePassword: false,
   });
   
   const [processingAppointment, setProcessingAppointment] = useState(null);
@@ -586,6 +596,10 @@ const Appointments = () => {
       products: [],
       notes: '',
       meetingType: 'in-person',
+      videoProvider: 'google-meet',
+      meetingAccess: 'open',
+      allowRecording: false,
+      requirePassword: false,
     });
   };
 
@@ -1069,6 +1083,91 @@ const Appointments = () => {
                 <MenuItem value="phone">Phone</MenuItem>
               </Select>
             </FormControl>
+            
+            {/* Video Provider Selection - only show when Virtual is selected */}
+            {bookingForm.meetingType === 'virtual' && (
+              <>
+                <FormControl fullWidth>
+                  <InputLabel>Video Provider</InputLabel>
+                  <Select
+                    value={bookingForm.videoProvider}
+                    label="Video Provider"
+                    onChange={(e) => setBookingForm({ ...bookingForm, videoProvider: e.target.value })}
+                  >
+                    <MenuItem value="google-meet">
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <VideoIcon color="primary" />
+                        Google Meet
+                      </Box>
+                    </MenuItem>
+                    <MenuItem value="microsoft-teams">
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <VideoIcon color="primary" />
+                        Microsoft Teams
+                      </Box>
+                    </MenuItem>
+                    <MenuItem value="zoom">
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <VideoIcon color="primary" />
+                        Zoom
+                      </Box>
+                    </MenuItem>
+                  </Select>
+                </FormControl>
+                
+                <FormControl fullWidth>
+                  <InputLabel>Meeting Access</InputLabel>
+                  <Select
+                    value={bookingForm.meetingAccess}
+                    label="Meeting Access"
+                    onChange={(e) => setBookingForm({ ...bookingForm, meetingAccess: e.target.value })}
+                  >
+                    <MenuItem value="open">
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <InfoIcon color="success" />
+                        Open - Anyone with link can join
+                      </Box>
+                    </MenuItem>
+                    <MenuItem value="restricted">
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <LockIcon color="warning" />
+                        Restricted - Only invited participants
+                      </Box>
+                    </MenuItem>
+                    <MenuItem value="approval-required">
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <SecurityIcon color="error" />
+                        Approval Required - Host must admit participants
+                      </Box>
+                    </MenuItem>
+                  </Select>
+                </FormControl>
+                
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Additional Security Options
+                  </Typography>
+                  <FormControl component="fieldset">
+                    <Box display="flex" flexDirection="column" gap={1}>
+                      <Box display="flex" alignItems="center">
+                        <Checkbox
+                          checked={bookingForm.allowRecording}
+                          onChange={(e) => setBookingForm({ ...bookingForm, allowRecording: e.target.checked })}
+                        />
+                        <Typography variant="body2">Allow meeting recording</Typography>
+                      </Box>
+                      <Box display="flex" alignItems="center">
+                        <Checkbox
+                          checked={bookingForm.requirePassword}
+                          onChange={(e) => setBookingForm({ ...bookingForm, requirePassword: e.target.checked })}
+                        />
+                        <Typography variant="body2">Require meeting password</Typography>
+                      </Box>
+                    </Box>
+                  </FormControl>
+                </Box>
+              </>
+            )}
             
             <TextField
               label="Additional Notes"
