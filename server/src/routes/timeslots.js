@@ -1,6 +1,6 @@
 import express from 'express';
-import { authenticate, authorize, checkPermission } from '../middleware/auth.js';
-import { validate } from '../middleware/validation.js';
+import { authenticateSupabase, requireRole } from '../middleware/supabaseAuth.js';
+import { validateRequest } from '../middleware/validation.js';
 import {
   getTimeslots,
   getTimeslot,
@@ -19,63 +19,61 @@ import {
 
 const router = express.Router();
 
-// Get available timeslots
+// Get available timeslots (all authenticated users can view)
 router.get(
   '/', 
-  authenticate, 
-  checkPermission('timeslot:read'),
+  authenticateSupabase,
   getTimeslotsValidator,
-  validate,
+  validateRequest,
   getTimeslots
 );
 
-// Get single timeslot
+// Get single timeslot (all authenticated users can view)
 router.get(
   '/:id',
-  authenticate,
-  checkPermission('timeslot:read'),
+  authenticateSupabase,
   idParamValidator,
-  validate,
+  validateRequest,
   getTimeslot
 );
 
 // Create timeslot (doctors only)
 router.post(
   '/', 
-  authenticate, 
-  checkPermission('timeslot:create'),
+  authenticateSupabase, 
+  requireRole(['doctor']),
   createTimeslotValidator,
-  validate,
+  validateRequest,
   createTimeslot
 );
 
 // Bulk create timeslots (doctors only)
 router.post(
   '/bulk',
-  authenticate,
-  checkPermission('timeslot:create'),
+  authenticateSupabase,
+  requireRole(['doctor']),
   bulkCreateTimeslotsValidator,
-  validate,
+  validateRequest,
   bulkCreateTimeslots
 );
 
-// Update timeslot
+// Update timeslot (doctors only)
 router.put(
   '/:id', 
-  authenticate, 
-  checkPermission('timeslot:update'),
+  authenticateSupabase, 
+  requireRole(['doctor']),
   updateTimeslotValidator,
-  validate,
+  validateRequest,
   updateTimeslot
 );
 
-// Delete timeslot
+// Delete timeslot (doctors only)
 router.delete(
   '/:id', 
-  authenticate, 
-  checkPermission('timeslot:delete'),
+  authenticateSupabase, 
+  requireRole(['doctor']),
   idParamValidator,
-  validate,
+  validateRequest,
   deleteTimeslot
 );
 

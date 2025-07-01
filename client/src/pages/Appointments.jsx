@@ -116,12 +116,16 @@ const Appointments = () => {
       queryClient.invalidateQueries('available-timeslots');
     };
 
-    // Listen for appointment updates
-    window.addEventListener('appointmentUpdate', handleAppointmentUpdate);
+    // Listen for appointment updates - fix event name mismatch
+    window.addEventListener('appointmentUpdated', handleAppointmentUpdate);
+    window.addEventListener('appointmentCreated', handleAppointmentUpdate);
+    window.addEventListener('appointmentDeleted', handleAppointmentUpdate);
     window.addEventListener('timeslotUpdate', handleTimeslotUpdate);
 
     return () => {
-      window.removeEventListener('appointmentUpdate', handleAppointmentUpdate);
+      window.removeEventListener('appointmentUpdated', handleAppointmentUpdate);
+      window.removeEventListener('appointmentCreated', handleAppointmentUpdate);
+      window.removeEventListener('appointmentDeleted', handleAppointmentUpdate);
       window.removeEventListener('timeslotUpdate', handleTimeslotUpdate);
     };
   }, [queryClient]);
@@ -132,6 +136,7 @@ const Appointments = () => {
     async () => {
       if (user?.role !== 'pharma') return { timeslots: [] };
       
+      // First, get timeslots that meet basic criteria
       let query = supabase
         .from('timeslots')
         .select(`
@@ -156,8 +161,39 @@ const Appointments = () => {
         throw error;
       }
       
-      let filteredData = (data || []).filter(timeslot => 
+      if (!data || data.length === 0) {
+        return { timeslots: [] };
+      }
+      
+      // Filter out timeslots that are at capacity
+      let filteredData = data.filter(timeslot => 
         timeslot.current_bookings < timeslot.max_bookings
+      );
+      
+      // Get all appointments for these timeslots to check for confirmed/scheduled ones
+      const timeslotIds = filteredData.map(t => t.id);
+      const { data: appointments, error: appointmentsError } = await supabase
+        .from('appointments')
+        .select('timeslot_id, status')
+        .in('timeslot_id', timeslotIds);
+      
+      if (appointmentsError) {
+        console.error('Appointments query error:', appointmentsError);
+        // If we can't get appointments, return empty to be safe
+        return { timeslots: [] };
+      }
+      
+      // Create a set of timeslot IDs that have scheduled or confirmed appointments
+      const unavailableTimeslotIds = new Set();
+      (appointments || []).forEach(appointment => {
+        if (['scheduled', 'confirmed'].includes(appointment.status)) {
+          unavailableTimeslotIds.add(appointment.timeslot_id);
+        }
+      });
+      
+      // Filter out timeslots that have scheduled or confirmed appointments
+      filteredData = filteredData.filter(timeslot => 
+        !unavailableTimeslotIds.has(timeslot.id)
       );
       
       // Apply specialization filter if provided
@@ -219,9 +255,9 @@ const Appointments = () => {
           .gte('date', dateRange.startDate.format('YYYY-MM-DD'))
           .lte('date', dateRange.endDate.format('YYYY-MM-DD'));
       } else {
-        // Past appointments: show appointments before today
-        timeslotQuery = timeslotQuery
-          .lte('date', dayjs().format('YYYY-MM-DD'));
+        // Past appointments: Show ALL appointments that are completed or cancelled
+        // Remove date restriction to show all past appointments regardless of date
+        console.log('🔍 Fetching past appointments - showing ALL completed/cancelled appointments');
       }
 
       const { data: timeslotIds, error: timeslotError } = await timeslotQuery;
@@ -234,12 +270,12 @@ const Appointments = () => {
       const timeslotIdList = (timeslotIds || []).map(t => t.id);
       
       // If no timeslots match the date criteria, return empty appointments
-      if (timeslotIdList.length === 0) {
+      if (timeslotIdList.length === 0 && isUpcoming) {
         return { appointments: [] };
       }
 
       // Now get appointments that match the timeslot IDs and user criteria
-      const { data, error } = await supabase
+      let appointmentQuery = supabase
         .from('appointments')
         .select(`
           *,
@@ -271,8 +307,15 @@ const Appointments = () => {
           )
         `)
         .in('status', statusList)
-        .in('timeslot_id', timeslotIdList)
         .or(`doctor_id.eq.${user.id},pharma_rep_id.eq.${user.id}`);
+
+      // For upcoming appointments, filter by timeslot IDs (date range)
+      // For past appointments, don't filter by timeslot IDs to get ALL past appointments
+      if (isUpcoming) {
+        appointmentQuery = appointmentQuery.in('timeslot_id', timeslotIdList);
+      }
+      
+      const { data, error } = await appointmentQuery;
       
       if (error) {
         console.error('Appointments query error:', error);
@@ -280,18 +323,24 @@ const Appointments = () => {
       }
       
       // Debug logging
-      console.log('Appointments query result:', {
+      console.log('📋 Appointments query result:', {
         userRole: user?.role,
         userId: user?.id,
         statusList,
         tabValue,
+        isUpcoming,
         dateRange: {
           start: dateRange.startDate.format('YYYY-MM-DD'),
           end: dateRange.endDate.format('YYYY-MM-DD')
         },
         timeslotIdList: timeslotIdList.length,
         appointmentsFound: (data || []).length,
-        appointments: data
+        appointments: data?.map(a => ({
+          id: a.id,
+          status: a.status,
+          date: a.timeslot?.date,
+          cancelled_at: a.cancelled_at
+        }))
       });
       
       // Add computed full_name for display
@@ -386,7 +435,7 @@ const Appointments = () => {
       onSuccess: () => {
         queryClient.invalidateQueries('available-timeslots');
         queryClient.invalidateQueries('appointments');
-        enqueueSnackbar('Appointment booked successfully!', { variant: 'success' });
+        enqueueSnackbar('Appointment booked successfully!', { variant: 'success', autoHideDuration: 2000 });
         handleCloseBookingDialog();
         setTabValue(1); // Switch to upcoming appointments
       },
@@ -477,7 +526,7 @@ const Appointments = () => {
         queryClient.invalidateQueries(['today-appointments']);
         queryClient.invalidateQueries('upcoming-appointments');
         queryClient.invalidateQueries('notifications'); // Refresh notifications for real-time updates
-        enqueueSnackbar('Appointment cancelled successfully', { variant: 'success' });
+        enqueueSnackbar('Appointment cancelled successfully', { variant: 'success', autoHideDuration: 2000 });
       },
       onError: (error) => {
         enqueueSnackbar(error.message || 'Failed to cancel appointment', {
@@ -507,11 +556,12 @@ const Appointments = () => {
     {
       onSuccess: () => {
         queryClient.invalidateQueries('appointments');
+        queryClient.invalidateQueries('available-timeslots'); // This will hide confirmed timeslots from other pharma users
         // Also invalidate dashboard queries so they update immediately
         queryClient.invalidateQueries('dashboard-stats');
         queryClient.invalidateQueries(['today-appointments']);
         queryClient.invalidateQueries('upcoming-appointments');
-        enqueueSnackbar('Appointment confirmed successfully!', { variant: 'success' });
+        enqueueSnackbar('Appointment confirmed successfully!', { variant: 'success', autoHideDuration: 2000 });
         setProcessingAppointment(null);
       },
       onError: (error) => {

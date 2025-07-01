@@ -8,10 +8,12 @@
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
     "build": "echo 'No build step required for server'",
-    "test": "jest",
-    "lint": "eslint src/"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint src/",
+    "migrate:supabase": "node src/scripts/migrateToSupabase.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
     "bcryptjs": "^2.4.3",
     "compression": "^1.7.4",
     "cors": "^2.8.5",

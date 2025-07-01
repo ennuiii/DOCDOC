@@ -1,0 +1,330 @@
+# Video Conferencing & Calendar Integrations PRD
+## PharmaDOC Platform Enhancement
+
+### 1. PROJECT OVERVIEW
+
+**Objective:** Implement comprehensive video conferencing (Zoom, Google Meet) and universal calendar integration (Google, Outlook, Apple CalDAV) for the PharmaDOC platform, enabling seamless virtual and hybrid appointment management between doctors and pharma representatives.
+
+**Current Tech Stack:**
+- Backend: Node.js/Express with Supabase PostgreSQL
+- Frontend: React 18 + Material-UI + React Query + Vite
+- Authentication: Supabase Auth (migrated from JWT)
+- Real-time: Supabase subscriptions
+- File Storage: Supabase Storage
+
+### 2. INTEGRATION ARCHITECTURE PRINCIPLES
+
+**Modular Integration Manager Pattern:**
+- Central Integration Manager Service as orchestration hub
+- Provider-specific services for each platform (pluggable architecture)
+- Webhook handler system for real-time event processing
+- Secure token management with encryption
+- Graceful fallback mechanisms for provider outages
+- Observable integration health monitoring
+
+**Expandability Design:**
+- Interface-based provider abstraction
+- Configuration-driven provider management
+- Hot-swappable provider implementations
+- Integration marketplace preparation
+- Vendor-agnostic data models
+
+### 3. VIDEO CONFERENCING REQUIREMENTS
+
+#### 3.1 Primary Providers
+**Zoom Integration:**
+- OAuth 2.0 authentication using user's Zoom accounts
+- Meeting creation, update, deletion via Zoom REST API
+- Automatic calendar integration with Zoom links
+- Recording management and access control
+- Waiting room and security controls
+- Cost optimization: Users provide their own Zoom accounts
+
+**Google Meet Integration:**
+- OAuth 2.0 with Google Calendar API
+- Automatic Meet link generation via `conferenceData.createRequest`
+- Calendar event creation with embedded Meet links
+- No additional subscription costs (works with free Gmail)
+- Integration with Google Workspace for enterprise users
+
+#### 3.2 Video Integration Features
+- **Meeting Lifecycle Management:** Create, update, cancel, join
+- **Security Controls:** Waiting rooms, participant permissions, recording policies
+- **Meeting Types:** Scheduled appointments, instant meetings, recurring series
+- **Integration Fallbacks:** Platform-hosted backup options for users without accounts
+- **Meeting Analytics:** Duration, participation, engagement metrics
+- **Mobile Support:** Deep links for mobile app joining
+
+#### 3.3 User Experience Flow
+1. **Doctor Setup:** Connect calendar and video provider accounts via OAuth
+2. **Appointment Creation:** Auto-generate video links when creating timeslots
+3. **Pharma Booking:** Receive calendar invite with video link upon confirmation
+4. **Pre-Meeting:** Automated reminders with join links and agenda
+5. **Meeting Management:** One-click join, participant controls, recording options
+6. **Post-Meeting:** Automatic follow-up with meeting summary and next steps
+
+### 4. CALENDAR INTEGRATION REQUIREMENTS
+
+#### 4.1 Universal Calendar Support
+**Google Calendar:**
+- Full OAuth 2.0 integration with Calendar API v3
+- Two-way sync for appointments and availability
+- Automatic timezone handling and conflict detection
+- Support for multiple calendar integration
+- Real-time webhook notifications for changes
+
+**Microsoft Outlook:**
+- Microsoft Graph API integration via Azure AD
+- Exchange Online and Outlook.com support
+- Calendar access with read/write permissions
+- Teams meeting integration capability
+- Office 365 enterprise compatibility
+
+**Apple Calendar (CalDAV):**
+- Universal CalDAV protocol implementation
+- Support for iCloud, Yahoo, and other CalDAV providers
+- Basic conflict detection and sync capabilities
+- Manual refresh with planned webhook upgrades
+
+#### 4.2 Sync Features
+**Bi-directional Synchronization:**
+- PharmaDOC → External calendars: Export appointments with full details
+- External calendars → PharmaDOC: Import conflicts and availability blocks
+- Smart conflict resolution with auto-decline options
+- Buffer time management between appointments
+- Timezone normalization across providers
+
+**Real-time Updates:**
+- Webhook processing for Google and Microsoft changes
+- Polling mechanism for CalDAV providers
+- Immediate UI updates via Supabase real-time subscriptions
+- Conflict alerts and resolution suggestions
+
+#### 4.3 Advanced Calendar Features
+**Smart Scheduling:**
+- Multi-calendar availability analysis
+- Automatic buffer time between meetings
+- Travel time calculation for hybrid meetings
+- Recurring appointment series management
+- Holiday and working hours respect
+
+**Conflict Management:**
+- Real-time conflict detection
+- Automatic decline of conflicting external events
+- Proposal of alternative timeslots
+- Meeting rescheduling with participant notification
+
+### 5. DATABASE SCHEMA EXTENSIONS
+
+#### 5.1 Integration Management Tables
+```sql
+-- User integration configurations
+user_integrations (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id),
+  provider_type TEXT, -- 'google', 'microsoft', 'zoom', 'caldav'
+  provider_config JSONB, -- encrypted tokens and settings
+  is_active BOOLEAN DEFAULT true,
+  integration_health JSONB, -- last sync, error status
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP
+);
+
+-- Video meeting data
+meeting_integrations (
+  id UUID PRIMARY KEY,
+  appointment_id UUID REFERENCES appointments(id),
+  provider_type TEXT, -- 'zoom', 'google_meet'
+  provider_meeting_id TEXT,
+  meeting_url TEXT,
+  join_details JSONB, -- dial-in numbers, passcodes
+  recording_settings JSONB,
+  meeting_status TEXT, -- 'scheduled', 'started', 'ended'
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP
+);
+
+-- Calendar synchronization tracking
+calendar_events (
+  id UUID PRIMARY KEY,
+  appointment_id UUID REFERENCES appointments(id),
+  user_id UUID REFERENCES auth.users(id),
+  provider_type TEXT,
+  external_event_id TEXT,
+  sync_status TEXT, -- 'synced', 'conflict', 'failed'
+  last_sync_at TIMESTAMP,
+  conflict_details JSONB,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP
+);
+
+-- Webhook processing
+integration_webhooks (
+  id UUID PRIMARY KEY,
+  provider_type TEXT,
+  webhook_type TEXT, -- 'calendar_change', 'meeting_status'
+  payload JSONB,
+  processed_at TIMESTAMP,
+  processing_status TEXT,
+  retry_count INTEGER DEFAULT 0,
+  created_at TIMESTAMP
+);
+```
+
+#### 5.2 Enhanced Appointments Schema
+```sql
+-- Extend existing appointments table
+ALTER TABLE appointments ADD COLUMN meeting_type TEXT DEFAULT 'in_person'; -- 'in_person', 'virtual', 'hybrid'
+ALTER TABLE appointments ADD COLUMN video_provider TEXT; -- 'zoom', 'google_meet', 'teams'
+ALTER TABLE appointments ADD COLUMN calendar_sync_status JSONB; -- sync status per provider
+ALTER TABLE appointments ADD COLUMN automated_reminders JSONB; -- reminder settings and history
+```
+
+### 6. SECURITY & COMPLIANCE REQUIREMENTS
+
+#### 6.1 Data Protection
+**Token Security:**
+- OAuth tokens encrypted at rest using Supabase vault
+- Automatic token refresh with secure storage
+- Rate limiting and usage monitoring per provider
+- Audit logging for all integration activities
+- GDPR-compliant data handling and deletion
+
+**Access Control:**
+- Role-based access to integration settings
+- User consent management for data sharing
+- Integration permission granularity
+- Admin oversight of organizational integrations
+
+#### 6.2 Compliance Considerations
+**Healthcare Compliance:**
+- HIPAA-compatible video conferencing settings
+- Audit trails for all patient-related meetings
+- Secure recording and storage policies
+- Data retention and deletion procedures
+
+**API Security:**
+- Provider-specific security best practices
+- Webhook signature verification
+- Request signing and authentication
+- Rate limiting and DDoS protection
+
+### 7. IMPLEMENTATION PHASES
+
+#### Phase 1: Foundation Architecture (2-3 weeks)
+- Integration Manager Service development
+- Database schema implementation
+- OAuth provider abstractions
+- Security framework setup
+- Basic UI integration components
+
+#### Phase 2: Google Ecosystem Integration (2 weeks)
+- Google Calendar API integration
+- Google Meet meeting creation
+- Two-way calendar synchronization
+- Conflict detection and resolution
+- Real-time webhook processing
+
+#### Phase 3: Microsoft Ecosystem Integration (2 weeks)
+- Microsoft Graph API integration
+- Outlook calendar synchronization
+- Teams meeting integration
+- Enterprise authentication (Azure AD)
+- Advanced scheduling features
+
+#### Phase 4: Zoom Integration (1-2 weeks)
+- Zoom OAuth and API integration
+- Meeting creation and management
+- Recording and security controls
+- Mobile app deep linking
+- Analytics and reporting
+
+#### Phase 5: CalDAV Universal Support (1-2 weeks)
+- CalDAV protocol implementation
+- Apple iCloud integration
+- Generic CalDAV provider support
+- Fallback synchronization mechanisms
+- Enhanced conflict resolution
+
+#### Phase 6: Advanced Features (2-3 weeks)
+- Smart scheduling algorithms
+- Multi-provider conflict resolution
+- Integration health monitoring
+- Advanced analytics and reporting
+- Mobile optimization
+
+### 8. SUCCESS METRICS
+
+**Technical Metrics:**
+- Integration uptime > 99.5%
+- Token refresh success rate > 99%
+- Webhook processing latency < 30 seconds
+- Calendar sync accuracy > 99%
+- Meeting creation success rate > 98%
+
+**User Experience Metrics:**
+- Setup completion rate > 90%
+- Daily active integration usage > 70%
+- Meeting join success rate > 95%
+- User satisfaction score > 4.5/5
+- Support ticket volume < 5% of user base
+
+**Business Metrics:**
+- Increased appointment booking rate by 40%
+- Reduced no-show rate by 25%
+- Improved user retention by 30%
+- Platform session time increase by 50%
+
+### 9. FUTURE EXPANSION OPPORTUNITIES
+
+**Additional Video Providers:**
+- Microsoft Teams direct integration
+- WebRTC custom branded solutions
+- Cisco Webex Enterprise
+- GoToMeeting platform integration
+
+**Enhanced Calendar Features:**
+- AI-powered scheduling optimization
+- Multi-timezone coordination
+- Resource booking (rooms, equipment)
+- Automated follow-up scheduling
+
+**Integration Marketplace:**
+- Third-party provider ecosystem
+- Custom integration developer APIs
+- Plugin architecture for new providers
+- Revenue sharing models
+
+**Advanced Analytics:**
+- Meeting effectiveness scoring
+- Engagement pattern analysis
+- ROI tracking for pharma companies
+- Predictive scheduling optimization
+
+### 10. TECHNICAL DEPENDENCIES
+
+**Required Libraries (Backend):**
+- `googleapis` - Google Calendar and Meet integration
+- `@azure/msal-node` - Microsoft authentication
+- `microsoft-graph` - Outlook and Teams integration  
+- `node-zoom-api` or `zoom-api` - Zoom integration
+- `caldav-client` - CalDAV protocol support
+- `node-cron` - Scheduled sync operations
+- `crypto` - Token encryption/decryption
+
+**Required Libraries (Frontend):**
+- `@google-cloud/local-auth` - Google OAuth flows
+- `msal` - Microsoft authentication 
+- `@zoom/meetingsdk` - Zoom meeting SDK
+- `ical` - Calendar parsing and generation
+- `date-fns-tz` - Timezone handling
+- `@mui/x-date-pickers` - Enhanced date/time components
+
+**Infrastructure Requirements:**
+- Webhook endpoint hosting and SSL certificates
+- Background job processing (cron jobs or queue system)
+- Enhanced monitoring and logging
+- Increased API rate limits for external services
+- Backup data storage for integration failures
+
+This PRD provides a comprehensive foundation for implementing robust, secure, and expandable video conferencing and calendar integrations that will significantly enhance the PharmaDOC platform's value proposition while maintaining architectural excellence and preparing for future growth. 

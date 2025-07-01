@@ -1,5 +1,5 @@
-import Timeslot from '../models/Timeslot.js';
-import User from '../models/User.js';
+import { supabaseAdmin } from '../config/supabase.js';
+import NotificationService from '../services/notificationService.js';
 
 // Get all timeslots with filters
 export const getTimeslots = async (req, res) => {
@@ -15,70 +15,95 @@ export const getTimeslots = async (req, res) => {
       limit = 50
     } = req.query;
     
-    // Build query
-    const query = {};
+    const supabase = supabaseAdmin();
     
-    // Filter by doctor
-    if (doctorId) {
-      query.doctor = doctorId;
+    // Build query
+    let query = supabase
+      .from('timeslots')
+      .select(`
+        *,
+        doctor:users!doctor_id(
+          id,
+          first_name,
+          last_name,
+          email,
+          specialization,
+          clinic_name,
+          title
+        ),
+        appointments(
+          id,
+          status,
+          pharma_rep_id,
+          purpose
+        )
+      `);
+    
+    // Apply role-based filters
+    if (doctorId && (req.user.role === 'admin' || req.user.role === 'pharma')) {
+      query = query.eq('doctor_id', doctorId);
     } else if (req.user.role === 'doctor') {
       // Doctors can only see their own timeslots
-      query.doctor = req.user._id;
+      query = query.eq('doctor_id', req.user.id);
     } else if (req.user.role === 'staff') {
       // Staff can see their assigned doctor's timeslots
-      query.doctor = req.user.profile.assignedDoctor;
+      if (req.user.profile?.assignedDoctorId) {
+        query = query.eq('doctor_id', req.user.profile.assignedDoctorId);
+      }
     }
     
     // Date filters
     if (date) {
-      const targetDate = new Date(date);
-      targetDate.setHours(0, 0, 0, 0);
-      const nextDay = new Date(targetDate);
-      nextDay.setDate(nextDay.getDate() + 1);
-      query.date = { $gte: targetDate, $lt: nextDay };
-    } else if (startDate || endDate) {
-      query.date = {};
-      if (startDate) {
-        query.date.$gte = new Date(startDate);
-      }
-      if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        query.date.$lte = end;
+      query = query.eq('date', date);
+    } else if (startDate && endDate) {
+      query = query.gte('date', startDate).lte('date', endDate);
+    } else if (startDate) {
+      query = query.gte('date', startDate);
+    } else if (endDate) {
+      query = query.lte('date', endDate);
+    } else {
+      // Default to future dates only for non-doctors
+      if (req.user.role !== 'doctor') {
+        query = query.gte('date', new Date().toISOString().split('T')[0]);
       }
     }
     
     // Status filter
     if (status) {
-      query.status = status;
+      if (status.includes(',')) {
+        query = query.in('status', status.split(','));
+      } else {
+        query = query.eq('status', status);
+      }
     }
     
     // Type filter
     if (type) {
-      query.type = type;
+      query = query.eq('type', type);
     }
     
     // Pagination
-    const skip = (page - 1) * limit;
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
     
     // Execute query
-    const [timeslots, total] = await Promise.all([
-      Timeslot.find(query)
-        .populate('doctor', 'email profile.firstName profile.lastName profile.clinicName')
-        .populate('appointment')
-        .sort({ date: 1, startTime: 1 })
-        .skip(skip)
-        .limit(parseInt(limit)),
-      Timeslot.countDocuments(query)
-    ]);
+    const { data: timeslots, error, count } = await query
+      .order('date', { ascending: true })
+      .order('start_time', { ascending: true })
+      .range(from, to);
+    
+    if (error) {
+      console.error('Get timeslots error:', error);
+      throw error;
+    }
     
     res.json({
-      timeslots,
+      timeslots: timeslots || [],
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / limit)
+        total: count || 0,
+        pages: Math.ceil((count || 0) / limit)
       }
     });
   } catch (error) {
@@ -94,17 +119,47 @@ export const getTimeslots = async (req, res) => {
 export const getTimeslot = async (req, res) => {
   try {
     const { id } = req.params;
+    const supabase = supabaseAdmin();
     
-    const timeslot = await Timeslot.findById(id)
-      .populate('doctor', 'email profile.firstName profile.lastName profile.clinicName')
-      .populate('appointment');
+    const { data: timeslot, error } = await supabase
+      .from('timeslots')
+      .select(`
+        *,
+        doctor:users!doctor_id(
+          id,
+          first_name,
+          last_name,
+          email,
+          specialization,
+          clinic_name,
+          title
+        ),
+        appointments(
+          id,
+          status,
+          pharma_rep_id,
+          purpose,
+          pharma_rep:users!pharma_rep_id(
+            id,
+            first_name,
+            last_name,
+            email,
+            company_name
+          )
+        )
+      `)
+      .eq('id', id)
+      .single();
     
-    if (!timeslot) {
-      return res.status(404).json({ error: 'Timeslot not found' });
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({ error: 'Timeslot not found' });
+      }
+      throw error;
     }
     
     // Check access permissions
-    if (req.user.role === 'doctor' && timeslot.doctor._id.toString() !== req.user._id.toString()) {
+    if (req.user.role === 'doctor' && timeslot.doctor_id !== req.user.id) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -128,6 +183,7 @@ export const createTimeslot = async (req, res) => {
       type,
       maxBookings,
       notes,
+      duration,
       recurringRule
     } = req.body;
     
@@ -136,61 +192,126 @@ export const createTimeslot = async (req, res) => {
       return res.status(403).json({ error: 'Only doctors can create timeslots' });
     }
     
-    // Parse and validate date
+    // Validate date is not in the past
     const slotDate = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     slotDate.setHours(0, 0, 0, 0);
     
-    // Check if date is in the past
-    if (slotDate < new Date().setHours(0, 0, 0, 0)) {
+    if (slotDate < today) {
       return res.status(400).json({ error: 'Cannot create timeslots in the past' });
     }
     
-    // Check for overlapping timeslots
-    const hasOverlap = await Timeslot.checkOverlap(
-      req.user._id,
-      slotDate,
-      startTime,
-      endTime
-    );
+    const supabase = supabaseAdmin();
     
-    if (hasOverlap) {
+    // Check for overlapping timeslots
+    const { data: overlappingSlots, error: overlapError } = await supabase
+      .from('timeslots')
+      .select('id')
+      .eq('doctor_id', req.user.id)
+      .eq('date', date)
+      .or(`and(start_time.lte.${startTime},end_time.gt.${startTime}),and(start_time.lt.${endTime},end_time.gte.${endTime}),and(start_time.gte.${startTime},end_time.lte.${endTime})`);
+    
+    if (overlapError) {
+      throw overlapError;
+    }
+    
+    if (overlappingSlots && overlappingSlots.length > 0) {
       return res.status(400).json({ 
         error: 'Timeslot overlaps with existing timeslot' 
       });
     }
     
     // Create timeslot
-    const timeslot = new Timeslot({
-      doctor: req.user._id,
-      date: slotDate,
-      startTime,
-      endTime,
-      type: type || 'pharma',
-      maxBookings: maxBookings || 1,
-      notes,
-      recurringRule: recurringRule || { type: 'none' }
-    });
+    const { data: timeslot, error: createError } = await supabase
+      .from('timeslots')
+      .insert({
+        doctor_id: req.user.id,
+        date,
+        start_time: startTime,
+        end_time: endTime,
+        duration: duration || 30,
+        type: type || 'pharma',
+        max_bookings: maxBookings || 1,
+        current_bookings: 0,
+        status: 'available',
+        notes,
+        recurring_rule: recurringRule || { type: 'none' }
+      })
+      .select(`
+        *,
+        doctor:users!doctor_id(
+          id,
+          first_name,
+          last_name,
+          email,
+          specialization,
+          clinic_name
+        )
+      `)
+      .single();
     
-    await timeslot.save();
+    if (createError) {
+      throw createError;
+    }
     
     // Handle recurring timeslots
-    let recurringSlots = [];
+    let recurringCreated = 0;
     if (recurringRule && recurringRule.type !== 'none' && recurringRule.endDate) {
-      const endDate = new Date(recurringRule.endDate);
-      recurringSlots = await timeslot.generateRecurring(endDate);
+      const recurringSlots = await generateRecurringTimeslots(
+        req.user.id,
+        date,
+        startTime,
+        endTime,
+        duration,
+        type,
+        maxBookings,
+        notes,
+        recurringRule
+      );
       
       if (recurringSlots.length > 0) {
-        await Timeslot.insertMany(recurringSlots);
+        const { error: recurringError } = await supabase
+          .from('timeslots')
+          .insert(recurringSlots);
+        
+        if (!recurringError) {
+          recurringCreated = recurringSlots.length;
+        }
       }
     }
     
-    // Populate doctor info
-    await timeslot.populate('doctor', 'email profile.firstName profile.lastName profile.clinicName');
+    // Create notification for staff if they are assigned to this doctor
+    // Find staff assigned to this doctor
+    const { data: staffMembers } = await supabase
+      .from('users')
+      .select('id, first_name, last_name, email')
+      .eq('role', 'staff')
+      .eq('assigned_doctor_id', req.user.id);
+    
+    if (staffMembers && staffMembers.length > 0) {
+      for (const staff of staffMembers) {
+        await NotificationService.createNotification({
+          recipientId: staff.id,
+          title: 'New Timeslot Created',
+          message: `Dr. ${req.user.first_name} ${req.user.last_name} has created a new timeslot for ${date} at ${startTime}.`,
+          type: 'timeslot_created',
+          priority: 'low',
+          data: {
+            timeslotId: timeslot.id,
+            doctorName: `Dr. ${req.user.first_name} ${req.user.last_name}`,
+            date,
+            time: startTime,
+            link: `/timeslots`
+          }
+        });
+      }
+    }
     
     res.status(201).json({
       message: 'Timeslot created successfully',
       timeslot,
-      recurringCreated: recurringSlots.length
+      recurringCreated
     });
   } catch (error) {
     console.error('Create timeslot error:', error);
@@ -205,74 +326,85 @@ export const createTimeslot = async (req, res) => {
 export const updateTimeslot = async (req, res) => {
   try {
     const { id } = req.params;
-    const {
-      date,
-      startTime,
-      endTime,
-      type,
-      maxBookings,
-      notes,
-      status
-    } = req.body;
+    const updateData = req.body;
     
-    // Find timeslot
-    const timeslot = await Timeslot.findById(id);
-    if (!timeslot) {
+    const supabase = supabaseAdmin();
+    
+    // Find timeslot first
+    const { data: existingTimeslot, error: fetchError } = await supabase
+      .from('timeslots')
+      .select('*')
+      .eq('id', id)
+      .single();
+    
+    if (fetchError || !existingTimeslot) {
       return res.status(404).json({ error: 'Timeslot not found' });
     }
     
-    // Check ownership
-    if (req.user.role === 'doctor' && timeslot.doctor.toString() !== req.user._id.toString()) {
+    // Check permissions
+    if (req.user.role === 'doctor' && existingTimeslot.doctor_id !== req.user.id) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
-    // Check if timeslot is already booked
-    if (timeslot.status === 'booked' && status !== 'cancelled') {
-      return res.status(400).json({ 
-        error: 'Cannot modify booked timeslot. You can only cancel it.' 
-      });
-    }
-    
-    // Update fields
-    if (date !== undefined) {
-      const newDate = new Date(date);
-      newDate.setHours(0, 0, 0, 0);
+    // If updating time or date, check for overlaps
+    if (updateData.date || updateData.start_time || updateData.end_time) {
+      const checkDate = updateData.date || existingTimeslot.date;
+      const checkStartTime = updateData.start_time || existingTimeslot.start_time;
+      const checkEndTime = updateData.end_time || existingTimeslot.end_time;
       
-      // Check if new date is in the past
-      if (newDate < new Date().setHours(0, 0, 0, 0)) {
-        return res.status(400).json({ error: 'Cannot set timeslot date in the past' });
+      const { data: overlappingSlots, error: overlapError } = await supabase
+        .from('timeslots')
+        .select('id')
+        .eq('doctor_id', existingTimeslot.doctor_id)
+        .eq('date', checkDate)
+        .neq('id', id)
+        .or(`and(start_time.lte.${checkStartTime},end_time.gt.${checkStartTime}),and(start_time.lt.${checkEndTime},end_time.gte.${checkEndTime}),and(start_time.gte.${checkStartTime},end_time.lte.${checkEndTime})`);
+      
+      if (overlapError) {
+        throw overlapError;
       }
       
-      timeslot.date = newDate;
-    }
-    
-    if (startTime !== undefined) timeslot.startTime = startTime;
-    if (endTime !== undefined) timeslot.endTime = endTime;
-    
-    // Check for overlaps if time or date changed
-    if (date !== undefined || startTime !== undefined || endTime !== undefined) {
-      const hasOverlap = await Timeslot.checkOverlap(
-        timeslot.doctor,
-        timeslot.date,
-        timeslot.startTime,
-        timeslot.endTime,
-        timeslot._id
-      );
-      
-      if (hasOverlap) {
+      if (overlappingSlots && overlappingSlots.length > 0) {
         return res.status(400).json({ 
           error: 'Updated timeslot would overlap with existing timeslot' 
         });
       }
     }
     
-    if (type !== undefined) timeslot.type = type;
-    if (maxBookings !== undefined) timeslot.maxBookings = maxBookings;
-    if (notes !== undefined) timeslot.notes = notes;
-    if (status !== undefined) timeslot.status = status;
+    // Prepare update data with proper field names
+    const formattedUpdateData = {};
+    if (updateData.date) formattedUpdateData.date = updateData.date;
+    if (updateData.startTime) formattedUpdateData.start_time = updateData.startTime;
+    if (updateData.endTime) formattedUpdateData.end_time = updateData.endTime;
+    if (updateData.duration) formattedUpdateData.duration = updateData.duration;
+    if (updateData.type) formattedUpdateData.type = updateData.type;
+    if (updateData.maxBookings) formattedUpdateData.max_bookings = updateData.maxBookings;
+    if (updateData.notes !== undefined) formattedUpdateData.notes = updateData.notes;
+    if (updateData.status) formattedUpdateData.status = updateData.status;
     
-    await timeslot.save();
-    await timeslot.populate('doctor', 'email profile.firstName profile.lastName profile.clinicName');
+    formattedUpdateData.updated_at = new Date().toISOString();
+    
+    // Update timeslot
+    const { data: timeslot, error: updateError } = await supabase
+      .from('timeslots')
+      .update(formattedUpdateData)
+      .eq('id', id)
+      .select(`
+        *,
+        doctor:users!doctor_id(
+          id,
+          first_name,
+          last_name,
+          email,
+          specialization,
+          clinic_name
+        )
+      `)
+      .single();
+    
+    if (updateError) {
+      throw updateError;
+    }
     
     res.json({
       message: 'Timeslot updated successfully',
@@ -291,35 +423,94 @@ export const updateTimeslot = async (req, res) => {
 export const deleteTimeslot = async (req, res) => {
   try {
     const { id } = req.params;
+    const { force = false } = req.query;
     
-    // Find timeslot
-    const timeslot = await Timeslot.findById(id);
-    if (!timeslot) {
+    const supabase = supabaseAdmin();
+    
+    // Find timeslot with appointments
+    const { data: timeslot, error: fetchError } = await supabase
+      .from('timeslots')
+      .select(`
+        *,
+        appointments(
+          id,
+          status,
+          pharma_rep_id
+        )
+      `)
+      .eq('id', id)
+      .single();
+    
+    if (fetchError || !timeslot) {
       return res.status(404).json({ error: 'Timeslot not found' });
     }
     
-    // Check ownership
-    if (req.user.role === 'doctor' && timeslot.doctor.toString() !== req.user._id.toString()) {
+    // Check permissions
+    if (req.user.role === 'doctor' && timeslot.doctor_id !== req.user.id) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
-    // Check if timeslot is booked
-    if (timeslot.status === 'booked') {
+    // Check if timeslot has active appointments
+    const activeAppointments = timeslot.appointments?.filter(apt => 
+      ['scheduled', 'confirmed'].includes(apt.status)
+    ) || [];
+    
+    if (activeAppointments.length > 0 && !force) {
       return res.status(400).json({ 
-        error: 'Cannot delete booked timeslot. Cancel it first.' 
+        error: 'Cannot delete timeslot with active appointments. Use force=true to override.',
+        activeAppointments: activeAppointments.length
       });
     }
     
-    // Delete timeslot
-    await timeslot.deleteOne();
+    // If forcing deletion, cancel active appointments first
+    if (activeAppointments.length > 0 && force) {
+      const { error: cancelError } = await supabase
+        .from('appointments')
+        .update({
+          status: 'cancelled',
+          cancelled_at: new Date().toISOString(),
+          cancelled_by: req.user.id,
+          cancellation_reason: 'Timeslot deleted by doctor'
+        })
+        .in('id', activeAppointments.map(apt => apt.id));
+      
+      if (cancelError) {
+        throw cancelError;
+      }
+      
+      // Create notifications for affected pharma reps
+      for (const appointment of activeAppointments) {
+        await NotificationService.createNotification({
+          recipientId: appointment.pharma_rep_id,
+          title: 'Appointment Cancelled - Timeslot Deleted',
+          message: `Your appointment for ${timeslot.date} at ${timeslot.start_time} has been cancelled because the doctor deleted the timeslot.`,
+          type: 'appointment_cancelled',
+          priority: 'high',
+          data: {
+            appointmentId: appointment.id,
+            timeslotId: id,
+            date: timeslot.date,
+            time: timeslot.start_time,
+            reason: 'Timeslot deleted by doctor',
+            link: `/appointments`
+          }
+        });
+      }
+    }
     
-    // If it's a parent recurring timeslot, optionally delete all instances
-    if (req.query.deleteRecurring === 'true' && !timeslot.isRecurringInstance) {
-      await Timeslot.deleteMany({ parentTimeslot: timeslot._id });
+    // Delete timeslot
+    const { error: deleteError } = await supabase
+      .from('timeslots')
+      .delete()
+      .eq('id', id);
+    
+    if (deleteError) {
+      throw deleteError;
     }
     
     res.json({
-      message: 'Timeslot deleted successfully'
+      message: 'Timeslot deleted successfully',
+      cancelledAppointments: activeAppointments.length
     });
   } catch (error) {
     console.error('Delete timeslot error:', error);
@@ -341,69 +532,157 @@ export const bulkCreateTimeslots = async (req, res) => {
     }
     
     if (!Array.isArray(timeslots) || timeslots.length === 0) {
-      return res.status(400).json({ error: 'Invalid timeslots array' });
+      return res.status(400).json({ error: 'Timeslots array is required' });
     }
     
+    if (timeslots.length > 100) {
+      return res.status(400).json({ error: 'Maximum 100 timeslots per bulk operation' });
+    }
+    
+    const supabase = supabaseAdmin();
     const createdSlots = [];
     const errors = [];
     
+    // Process each timeslot
     for (let i = 0; i < timeslots.length; i++) {
-      const slotData = timeslots[i];
+      const slot = timeslots[i];
       
       try {
-        // Parse date
-        const slotDate = new Date(slotData.date);
+        // Validate date
+        const slotDate = new Date(slot.date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
         slotDate.setHours(0, 0, 0, 0);
         
-        // Check for overlap
-        const hasOverlap = await Timeslot.checkOverlap(
-          req.user._id,
-          slotDate,
-          slotData.startTime,
-          slotData.endTime
-        );
-        
-        if (hasOverlap) {
+        if (slotDate < today) {
           errors.push({
             index: i,
-            error: 'Overlaps with existing timeslot',
-            data: slotData
+            error: 'Cannot create timeslots in the past',
+            slot
+          });
+          continue;
+        }
+        
+        // Check for overlaps
+        const { data: overlappingSlots } = await supabase
+          .from('timeslots')
+          .select('id')
+          .eq('doctor_id', req.user.id)
+          .eq('date', slot.date)
+          .or(`and(start_time.lte.${slot.startTime},end_time.gt.${slot.startTime}),and(start_time.lt.${slot.endTime},end_time.gte.${slot.endTime}),and(start_time.gte.${slot.startTime},end_time.lte.${slot.endTime})`);
+        
+        if (overlappingSlots && overlappingSlots.length > 0) {
+          errors.push({
+            index: i,
+            error: 'Timeslot overlaps with existing timeslot',
+            slot
           });
           continue;
         }
         
         // Create timeslot
-        const timeslot = new Timeslot({
-          doctor: req.user._id,
-          date: slotDate,
-          startTime: slotData.startTime,
-          endTime: slotData.endTime,
-          type: slotData.type || 'pharma',
-          maxBookings: slotData.maxBookings || 1,
-          notes: slotData.notes
-        });
+        const { data: newSlot, error: createError } = await supabase
+          .from('timeslots')
+          .insert({
+            doctor_id: req.user.id,
+            date: slot.date,
+            start_time: slot.startTime,
+            end_time: slot.endTime,
+            duration: slot.duration || 30,
+            type: slot.type || 'pharma',
+            max_bookings: slot.maxBookings || 1,
+            current_bookings: 0,
+            status: 'available',
+            notes: slot.notes
+          })
+          .select()
+          .single();
         
-        await timeslot.save();
-        createdSlots.push(timeslot);
+        if (createError) {
+          errors.push({
+            index: i,
+            error: createError.message,
+            slot
+          });
+          continue;
+        }
+        
+        createdSlots.push(newSlot);
       } catch (error) {
         errors.push({
           index: i,
           error: error.message,
-          data: slotData
+          slot
         });
       }
     }
     
     res.status(201).json({
-      message: `Created ${createdSlots.length} timeslots`,
-      created: createdSlots,
-      errors: errors.length > 0 ? errors : undefined
+      message: `Bulk timeslot creation completed`,
+      created: createdSlots.length,
+      errors: errors.length,
+      timeslots: createdSlots,
+      errorDetails: errors
     });
   } catch (error) {
     console.error('Bulk create timeslots error:', error);
     res.status(500).json({ 
-      error: 'Failed to create timeslots',
+      error: 'Failed to bulk create timeslots',
       details: error.message 
     });
   }
-}; 
+};
+
+// Helper function to generate recurring timeslots
+async function generateRecurringTimeslots(doctorId, startDate, startTime, endTime, duration, type, maxBookings, notes, recurringRule) {
+  const slots = [];
+  const start = new Date(startDate);
+  const end = new Date(recurringRule.endDate);
+  
+  let current = new Date(start);
+  current.setDate(current.getDate() + 1); // Start from next occurrence
+  
+  while (current <= end) {
+    let shouldCreate = false;
+    
+    switch (recurringRule.type) {
+      case 'daily':
+        shouldCreate = true;
+        current.setDate(current.getDate() + 1);
+        break;
+      case 'weekly':
+        if (recurringRule.daysOfWeek && recurringRule.daysOfWeek.includes(current.getDay())) {
+          shouldCreate = true;
+        }
+        current.setDate(current.getDate() + 1);
+        break;
+      case 'monthly':
+        if (recurringRule.dayOfMonth && current.getDate() === recurringRule.dayOfMonth) {
+          shouldCreate = true;
+        }
+        current.setDate(current.getDate() + 1);
+        break;
+      default:
+        return slots;
+    }
+    
+    if (shouldCreate) {
+      slots.push({
+        doctor_id: doctorId,
+        date: current.toISOString().split('T')[0],
+        start_time: startTime,
+        end_time: endTime,
+        duration,
+        type,
+        max_bookings: maxBookings,
+        current_bookings: 0,
+        status: 'available',
+        notes,
+        is_recurring_instance: true,
+        recurring_rule: recurringRule
+      });
+    }
+  }
+  
+  return slots;
+} 

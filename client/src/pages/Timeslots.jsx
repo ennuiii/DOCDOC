@@ -377,7 +377,7 @@ const Timeslots = () => {
     {
       onSuccess: () => {
         queryClient.invalidateQueries('timeslots');
-        enqueueSnackbar('Timeslot updated successfully!', { variant: 'success' });
+        enqueueSnackbar('Timeslot updated successfully!', { variant: 'success', autoHideDuration: 2000 });
         handleCloseDialog();
       },
       onError: (error) => {
@@ -404,7 +404,7 @@ const Timeslots = () => {
     {
       onSuccess: () => {
         queryClient.invalidateQueries('timeslots');
-        enqueueSnackbar('Timeslot deleted successfully!', { variant: 'success' });
+        enqueueSnackbar('Timeslot deleted successfully!', { variant: 'success', autoHideDuration: 2000 });
       },
       onError: (error) => {
         enqueueSnackbar(error.message || 'Failed to delete timeslot', {
@@ -442,7 +442,7 @@ const Timeslots = () => {
     {
       onSuccess: () => {
         queryClient.invalidateQueries('timeslots');
-        enqueueSnackbar('Recurring series deleted successfully!', { variant: 'success' });
+        enqueueSnackbar('Recurring series deleted successfully!', { variant: 'success', autoHideDuration: 2000 });
       },
       onError: (error) => {
         enqueueSnackbar(error.message || 'Failed to delete recurring series', {

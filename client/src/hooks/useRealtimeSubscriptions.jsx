@@ -63,7 +63,7 @@ export const useRealtimeSubscriptions = () => {
       // Subscribe to timeslots if user is doctor or staff
       const timeslotSubscription = await subscribeToTimeslots();
 
-      // Subscribe to research documents if public or shared with user
+      // Subscribe to research documents and shares
       const researchSubscription = await subscribeToResearch();
 
       // Store subscriptions for cleanup
@@ -183,18 +183,27 @@ export const useRealtimeSubscriptions = () => {
   const subscribeToResearch = async () => {
     if (!user) return null;
 
-    // Subscribe to public research documents or those shared with user
+    // Subscribe to research documents and shares
     const subscription = supabase
       .channel('research')
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*', // All events
           schema: 'public',
-          table: 'research_documents',
-          filter: 'is_public=eq.true'
+          table: 'research_documents'
         },
         handleResearchUpdate
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // All events
+          schema: 'public',
+          table: 'research_shares',
+          filter: user.role === 'doctor' ? `doctor_id=eq.${user.id}` : undefined
+        },
+        handleResearchShareUpdate
       )
       .subscribe();
 
@@ -234,76 +243,87 @@ export const useRealtimeSubscriptions = () => {
   };
 
   const handleAppointmentUpdate = (payload) => {
-    const { eventType, new: newRecord, old: oldRecord } = payload;
+    console.log('📱 Appointment real-time update:', payload);
     
-    let message = '';
-    let variant = 'info';
+    // Dispatch custom events for components to listen to
+    const eventType = payload.eventType;
+    const appointmentData = payload.new || payload.old;
 
-    switch (eventType) {
-      case 'INSERT':
-        if (newRecord.doctor_id === user.id) {
-          message = `New appointment scheduled: ${newRecord.purpose}`;
-          variant = 'success';
-        } else if (newRecord.pharma_rep_id === user.id) {
-          message = `Appointment booked successfully`;
-          variant = 'success';
-        }
-        // Dispatch event for dashboard updates
-        window.dispatchEvent(new CustomEvent('appointmentCreated', { 
-          detail: newRecord 
-        }));
-        break;
-      case 'UPDATE':
-        // Check for status changes
-        if (oldRecord.status !== newRecord.status) {
-          if (newRecord.doctor_id === user.id) {
-            switch (newRecord.status) {
-              case 'confirmed':
-                message = `Appointment confirmed: ${newRecord.purpose}`;
-                variant = 'success';
-                break;
-              case 'completed':
-                message = `Appointment completed: ${newRecord.purpose}`;
-                variant = 'success';
-                break;
-              case 'cancelled':
-                message = `Appointment cancelled: ${newRecord.purpose}`;
-                variant = 'warning';
-                break;
+    // Show user notification for relevant changes
+    if (appointmentData && eventType !== 'DELETE') {
+      const isUserInvolved = 
+        appointmentData.doctor_id === user.id || 
+        appointmentData.pharma_rep_id === user.id;
+
+      if (isUserInvolved) {
+        let message = '';
+        switch (eventType) {
+          case 'INSERT':
+            message = 'New appointment scheduled';
+            break;
+          case 'UPDATE':
+            if (appointmentData.status === 'confirmed') {
+              message = 'Appointment confirmed';
+            } else if (appointmentData.status === 'cancelled') {
+              message = 'Appointment cancelled';
+            } else if (appointmentData.status === 'completed') {
+              message = 'Appointment completed';
+            } else {
+              message = 'Appointment updated';
             }
-          } else if (newRecord.pharma_rep_id === user.id) {
-            switch (newRecord.status) {
-              case 'confirmed':
-                message = `Your appointment was confirmed: ${newRecord.purpose}`;
-                variant = 'success';
-                break;
-              case 'cancelled':
-                message = `Your appointment was cancelled: ${newRecord.purpose}`;
-                variant = 'warning';
-                break;
-            }
-          }
+            break;
         }
-        // Dispatch event for dashboard updates
-        window.dispatchEvent(new CustomEvent('appointmentUpdated', { 
-          detail: { old: oldRecord, new: newRecord }
-        }));
-        break;
-      case 'DELETE':
-        if (oldRecord.doctor_id === user.id || oldRecord.pharma_rep_id === user.id) {
-          message = `Appointment deleted: ${oldRecord.purpose}`;
-          variant = 'info';
+        
+        if (message) {
+          enqueueSnackbar(message, { 
+            variant: appointmentData.status === 'cancelled' ? 'warning' : 'info',
+            autoHideDuration: 2500 
+          });
         }
-        // Dispatch event for dashboard updates
-        window.dispatchEvent(new CustomEvent('appointmentDeleted', { 
-          detail: oldRecord 
-        }));
-        break;
+      }
     }
 
-    if (message) {
-      enqueueSnackbar(message, { variant });
+    // Dispatch custom events for different components
+    window.dispatchEvent(new CustomEvent('appointmentUpdated', { 
+      detail: { payload, eventType, appointmentData } 
+    }));
+    
+    if (eventType === 'INSERT') {
+      window.dispatchEvent(new CustomEvent('appointmentCreated', { 
+        detail: { payload, appointmentData } 
+      }));
+    } else if (eventType === 'DELETE') {
+      window.dispatchEvent(new CustomEvent('appointmentDeleted', { 
+        detail: { payload, appointmentData: payload.old } 
+      }));
     }
+
+    // Enhanced invalidation for all appointment-related queries
+    setTimeout(() => {
+      // Dashboard queries
+      window.dispatchEvent(new CustomEvent('invalidateQuery', { 
+        detail: { queryKey: 'dashboard-stats' }
+      }));
+      window.dispatchEvent(new CustomEvent('invalidateQuery', { 
+        detail: { queryKey: ['today-appointments'] }
+      }));
+      window.dispatchEvent(new CustomEvent('invalidateQuery', { 
+        detail: { queryKey: 'upcoming-appointments' }
+      }));
+      window.dispatchEvent(new CustomEvent('invalidateQuery', { 
+        detail: { queryKey: 'pending-actions' }
+      }));
+      
+      // Appointments page queries
+      window.dispatchEvent(new CustomEvent('invalidateQuery', { 
+        detail: { queryKey: ['appointments'] }
+      }));
+      
+      // Timeslots availability
+      window.dispatchEvent(new CustomEvent('invalidateQuery', { 
+        detail: { queryKey: ['available-timeslots'] }
+      }));
+    }, 100); // Small delay to ensure consistency
   };
 
   const handleTimeslotUpdate = (payload) => {
@@ -331,27 +351,82 @@ export const useRealtimeSubscriptions = () => {
   };
 
   const handleResearchUpdate = (payload) => {
-    const research = payload.new;
+    console.log('📚 Research document real-time update:', payload);
     
-    // Only notify about new public research documents
-    if (research.is_public && user.role === 'doctor') {
-      enqueueSnackbar(`New research available: ${research.title}`, { 
+    const eventType = payload.eventType;
+    const documentData = payload.new || payload.old;
+
+    // Show user notification for relevant changes
+    if (documentData && eventType !== 'DELETE') {
+      let message = '';
+      switch (eventType) {
+        case 'INSERT':
+          if (documentData.is_public) {
+            message = 'New public research document available';
+          } else if (documentData.uploaded_by_id === user.id) {
+            message = 'Your research document was uploaded successfully';
+          }
+          break;
+        case 'UPDATE':
+          if (documentData.uploaded_by_id === user.id) {
+            message = 'Your research document was updated';
+          }
+          break;
+      }
+      
+      if (message) {
+              enqueueSnackbar(message, {
         variant: 'info',
-        action: (
-          <button 
-            onClick={() => window.location.href = '/research'}
-            style={{ color: 'white', textDecoration: 'underline' }}
-          >
-            View
-          </button>
-        )
-      });
+        autoHideDuration: 2500 
+        });
+      }
     }
 
-    // Trigger custom event
-    window.dispatchEvent(new CustomEvent('researchUpdate', { 
-      detail: research 
+    // Dispatch custom events for components
+    window.dispatchEvent(new CustomEvent('researchUpdated', { 
+      detail: { payload, eventType, documentData } 
     }));
+
+    // Invalidate research queries
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('invalidateQuery', { 
+        detail: { queryKey: ['research'] }
+      }));
+    }, 100);
+  };
+
+  const handleResearchShareUpdate = (payload) => {
+    console.log('🤝 Research share real-time update:', payload);
+    
+    const eventType = payload.eventType;
+    const shareData = payload.new || payload.old;
+
+    // Show notification based on event type
+    if (shareData && shareData.doctor_id === user.id) {
+      if (eventType === 'INSERT') {
+        enqueueSnackbar('New research document shared with you', { 
+          variant: 'info',
+          autoHideDuration: 2500 
+        });
+      } else if (eventType === 'DELETE') {
+        enqueueSnackbar('Research document access has been revoked', { 
+          variant: 'warning',
+          autoHideDuration: 2500 
+        });
+      }
+    }
+
+    // Dispatch custom events for components
+    window.dispatchEvent(new CustomEvent('researchShareUpdated', { 
+      detail: { payload, eventType, shareData } 
+    }));
+
+    // Invalidate research queries
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('invalidateQuery', { 
+        detail: { queryKey: ['research'] }
+      }));
+    }, 100);
   };
 
   const getNotificationVariant = (priority) => {

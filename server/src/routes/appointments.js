@@ -1,6 +1,6 @@
 import express from 'express';
-import { authenticate, authorize, checkPermission } from '../middleware/auth.js';
-import { validate } from '../middleware/validation.js';
+import { authenticateSupabase, requireRole } from '../middleware/supabaseAuth.js';
+import { validateRequest } from '../middleware/validation.js';
 import {
   getAppointments,
   getAppointment,
@@ -14,112 +14,84 @@ import {
   getDashboardStats
 } from '../controllers/appointmentController.js';
 import {
-  getAppointmentsValidator,
   createAppointmentValidator,
   updateAppointmentValidator,
   cancelAppointmentValidator,
   addFeedbackValidator,
-  getAvailableTimeslotsValidator,
   idParamValidator
 } from '../validators/appointmentValidators.js';
 
 const router = express.Router();
 
-// Get dashboard statistics
-router.get(
-  '/stats',
-  authenticate,
-  checkPermission('appointment:read'),
-  getDashboardStats
-);
+// Get dashboard statistics (all authenticated users)
+router.get('/dashboard-stats', authenticateSupabase, getDashboardStats);
 
-// Get available timeslots for booking (pharma view)
-router.get(
-  '/available-timeslots',
-  authenticate,
-  checkPermission('appointment:create'),
-  getAvailableTimeslotsValidator,
-  validate,
-  getAvailableTimeslots
-);
+// Get available timeslots for booking (pharma users mainly)
+router.get('/available-timeslots', authenticateSupabase, getAvailableTimeslots);
 
-// Get appointments
-router.get(
-  '/', 
-  authenticate, 
-  checkPermission('appointment:read'),
-  getAppointmentsValidator,
-  validate,
-  getAppointments
-);
+// Get all appointments (role-based filtering applied in controller)
+router.get('/', authenticateSupabase, getAppointments);
 
 // Get single appointment
-router.get(
-  '/:id',
-  authenticate,
-  checkPermission('appointment:read'),
-  idParamValidator,
-  validate,
-  getAppointment
-);
+router.get('/:id', authenticateSupabase, idParamValidator, validateRequest, getAppointment);
 
-// Book appointment (pharma only)
+// Create appointment (pharma users only)
 router.post(
-  '/', 
-  authenticate, 
-  checkPermission('appointment:create'),
+  '/',
+  authenticateSupabase,
+  requireRole(['pharma']),
   createAppointmentValidator,
-  validate,
+  validateRequest,
   createAppointment
 );
 
-// Update appointment
+// Update appointment (doctors and pharma users)
 router.put(
-  '/:id', 
-  authenticate, 
-  checkPermission('appointment:update'),
+  '/:id',
+  authenticateSupabase,
+  requireRole(['doctor', 'pharma']),
   updateAppointmentValidator,
-  validate,
+  validateRequest,
   updateAppointment
 );
 
-// Cancel appointment
-router.delete(
-  '/:id', 
-  authenticate, 
-  checkPermission('appointment:delete'),
-  cancelAppointmentValidator,
-  validate,
-  cancelAppointment
-);
-
 // Confirm appointment (doctors only)
-router.post(
+router.put(
   '/:id/confirm',
-  authenticate,
-  authorize(['doctor']),
+  authenticateSupabase,
+  requireRole(['doctor']),
   idParamValidator,
-  validate,
+  validateRequest,
   confirmAppointment
 );
 
-// Complete appointment
-router.post(
+// Cancel appointment (doctors and pharma users)
+router.put(
+  '/:id/cancel',
+  authenticateSupabase,
+  requireRole(['doctor', 'pharma']),
+  cancelAppointmentValidator,
+  validateRequest,
+  cancelAppointment
+);
+
+// Complete appointment (doctors and pharma users)
+router.put(
   '/:id/complete',
-  authenticate,
-  checkPermission('appointment:update'),
+  authenticateSupabase,
+  requireRole(['doctor', 'pharma']),
   idParamValidator,
-  validate,
+  validateRequest,
   completeAppointment
 );
 
-// Add feedback
+// Add feedback to appointment (doctors and pharma users)
 router.post(
   '/:id/feedback',
-  authenticate,
-  checkPermission('appointment:update'),
+  authenticateSupabase,
+  requireRole(['doctor', 'pharma']),
   addFeedbackValidator,
-  validate,
+  validateRequest,
   addFeedback
 );
 

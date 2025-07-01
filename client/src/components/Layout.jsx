@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   AppBar,
   Box,
@@ -28,13 +28,17 @@ import {
   Logout as LogoutIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../hooks/useAuth';
+import RealtimeNotifications from './RealtimeNotifications';
+import RealtimeStatusIndicator from './RealtimeStatusIndicator';
+import useRealtimeSubscriptions from '../hooks/useRealtimeSubscriptions.jsx';
 
 const drawerWidth = 240;
 
-const Layout = () => {
+const Layout = ({ children }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
-  const { user, logout } = useAuth();
+  const { user, signOut } = useAuth();
+  const { isConnected, connectionStatus, reconnect } = useRealtimeSubscriptions();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -57,7 +61,7 @@ const Layout = () => {
 
   const handleLogout = () => {
     handleProfileMenuClose();
-    logout();
+    signOut();
   };
 
   const menuItems = [
@@ -118,20 +122,26 @@ const Layout = () => {
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             {filteredMenuItems.find(item => item.path === location.pathname)?.text || 'Pharmadoc'}
           </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Typography variant="body2">
-              {user?.profile?.firstName} {user?.profile?.lastName}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <RealtimeStatusIndicator
+              isConnected={isConnected}
+              connectionStatus={connectionStatus}
+              onReconnect={reconnect}
+            />
+            <RealtimeNotifications />
+            <Typography variant="body2" sx={{ ml: 1 }}>
+              {user?.first_name} {user?.last_name}
             </Typography>
             <IconButton
               onClick={handleProfileMenuOpen}
               size="small"
-              sx={{ ml: 2 }}
+              sx={{ ml: 1 }}
               aria-controls={Boolean(anchorEl) ? 'account-menu' : undefined}
               aria-haspopup="true"
               aria-expanded={Boolean(anchorEl) ? 'true' : undefined}
             >
               <Avatar sx={{ width: 32, height: 32 }}>
-                {user?.profile?.firstName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase()}
+                {user?.first_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase()}
               </Avatar>
             </IconButton>
           </Box>
@@ -195,11 +205,12 @@ const Layout = () => {
         sx={{
           flexGrow: 1,
           p: 3,
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
           mt: 8,
+          minHeight: 'calc(100vh - 64px)',
+          width: '100%',
         }}
       >
-        <Outlet />
+        {children}
       </Box>
     </Box>
   );

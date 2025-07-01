@@ -30,13 +30,16 @@ import {
   Badge,
   LocationOn,
   Assignment,
+  Home,
+  LocationCity,
 } from '@mui/icons-material';
-import { useAuth } from '../hooks/useAuth';
-import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import { useSnackbar } from 'notistack';
 
 const Register = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { signUp, signIn } = useAuth();
+  const { enqueueSnackbar } = useSnackbar();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -44,18 +47,26 @@ const Register = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    name: '',
+    firstName: '',
+    lastName: '',
     role: '',
     phone: '',
+    // Address fields
+    street: '',
+    streetNumber: '',
+    city: '',
+    postCode: '',
+    state: '',
+    country: '',
     // Doctor fields
     specialization: '',
     licenseNumber: '',
     clinicName: '',
-    clinicAddress: '',
     // Pharma fields
     companyName: '',
     companyRegistration: '',
-    companyAddress: '',
+    // Staff fields
+    assignedDoctorId: ''
   });
   const [errors, setErrors] = useState({});
 
@@ -87,20 +98,27 @@ const Register = () => {
     if (!formData.confirmPassword) newErrors.confirmPassword = 'Please confirm your password';
     else if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
 
-    if (!formData.name) newErrors.name = 'Name is required';
+    if (!formData.firstName) newErrors.firstName = 'First name is required';
+    if (!formData.lastName) newErrors.lastName = 'Last name is required';
     if (!formData.role) newErrors.role = 'Please select a role';
+
+    // Address validations
+    if (!formData.street) newErrors.street = 'Street is required';
+    if (!formData.streetNumber) newErrors.streetNumber = 'Street number is required';
+    if (!formData.city) newErrors.city = 'City is required';
+    if (!formData.postCode) newErrors.postCode = 'Post code is required';
 
     // Role-specific validations
     if (formData.role === 'doctor') {
       if (!formData.specialization) newErrors.specialization = 'Specialization is required';
       if (!formData.licenseNumber) newErrors.licenseNumber = 'License number is required';
       if (!formData.clinicName) newErrors.clinicName = 'Clinic name is required';
-      if (!formData.clinicAddress) newErrors.clinicAddress = 'Clinic address is required';
       if (!formData.phone) newErrors.phone = 'Phone number is required';
     } else if (formData.role === 'pharma') {
       if (!formData.companyName) newErrors.companyName = 'Company name is required';
       if (!formData.companyRegistration) newErrors.companyRegistration = 'Company registration is required';
-      if (!formData.companyAddress) newErrors.companyAddress = 'Company address is required';
+    } else if (formData.role === 'staff') {
+      if (!formData.assignedDoctorId) newErrors.assignedDoctorId = 'Assigned doctor is required';
     }
 
     setErrors(newErrors);
@@ -109,44 +127,79 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-
+    
     if (!validateForm()) {
       return;
     }
 
     setLoading(true);
+    setError('');
 
     try {
-      // Prepare data based on role
+      // Prepare registration data
       const registrationData = {
         email: formData.email,
         password: formData.password,
-        name: formData.name,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
         role: formData.role,
+        phone: formData.phone,
+        address: {
+          street: formData.street,
+          streetNumber: formData.streetNumber,
+          city: formData.city,
+          postCode: formData.postCode,
+          state: formData.state,
+          country: formData.country
+        }
       };
 
+      // Add role-specific fields
       if (formData.role === 'doctor') {
         registrationData.specialization = formData.specialization;
         registrationData.licenseNumber = formData.licenseNumber;
         registrationData.clinicName = formData.clinicName;
-        registrationData.clinicAddress = formData.clinicAddress;
-        registrationData.phone = formData.phone;
       } else if (formData.role === 'pharma') {
         registrationData.companyName = formData.companyName;
         registrationData.companyRegistration = formData.companyRegistration;
-        registrationData.companyAddress = formData.companyAddress;
+      } else if (formData.role === 'staff') {
+        registrationData.assignedDoctorId = formData.assignedDoctorId;
       }
 
-      const response = await api.post('/auth/register', registrationData);
+      console.log('Submitting registration data:', registrationData);
+      const result = await signUp(registrationData);
       
-      // Auto-login after successful registration
-      await login(formData.email, formData.password);
-      
-      // Navigate to dashboard
-      navigate('/dashboard');
+      if (result.success) {
+        enqueueSnackbar(result.message, { variant: 'success' });
+        
+        if (result.emailConfirmationRequired) {
+          // Email confirmation required - redirect to login with info message
+                  enqueueSnackbar('Please check your email and click the confirmation link, then return to log in.', {
+          variant: 'info',
+          autoHideDuration: 3000 
+          });
+          navigate('/login', { 
+            state: { 
+              message: 'Registration successful! Please check your email to verify your account before signing in.',
+              email: formData.email 
+            } 
+          });
+        } else {
+          // No email confirmation needed - try auto-login
+          try {
+            await signIn(formData.email, formData.password);
+            navigate('/dashboard');
+          } catch (loginError) {
+            // If auto-login fails, redirect to login page
+            enqueueSnackbar('Registration successful! Please log in.', { variant: 'info' });
+            navigate('/login');
+          }
+        }
+      }
     } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed. Please try again.');
+      console.error('Registration error:', err);
+      setError(err.message || 'Registration failed. Please try again.');
+      enqueueSnackbar(err.message || 'Registration failed. Please try again.', { variant: 'error' });
     } finally {
       setLoading(false);
     }
@@ -213,26 +266,6 @@ const Register = () => {
           <Grid item xs={12}>
             <TextField
               fullWidth
-              name="clinicAddress"
-              label="Clinic Address"
-              value={formData.clinicAddress}
-              onChange={handleChange}
-              error={!!errors.clinicAddress}
-              helperText={errors.clinicAddress}
-              multiline
-              rows={2}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <LocationOn />
-                  </InputAdornment>
-                ),
-              }}
-            />
-          </Grid>
-          <Grid item xs={12}>
-            <TextField
-              fullWidth
               name="phone"
               label="Phone Number"
               value={formData.phone}
@@ -289,26 +322,6 @@ const Register = () => {
               }}
             />
           </Grid>
-          <Grid item xs={12}>
-            <TextField
-              fullWidth
-              name="companyAddress"
-              label="Company Address"
-              value={formData.companyAddress}
-              onChange={handleChange}
-              error={!!errors.companyAddress}
-              helperText={errors.companyAddress}
-              multiline
-              rows={2}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <LocationOn />
-                  </InputAdornment>
-                ),
-              }}
-            />
-          </Grid>
         </>
       );
     }
@@ -316,7 +329,7 @@ const Register = () => {
   };
 
   return (
-    <Container component="main" maxWidth="sm">
+    <Container component="main" maxWidth="md">
       <Box
         sx={{
           marginTop: 8,
@@ -364,15 +377,34 @@ const Register = () => {
                 </FormControl>
               </Grid>
 
-              <Grid item xs={12}>
+              <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
-                  name="name"
-                  label="Full Name"
-                  value={formData.name}
+                  name="firstName"
+                  label="First Name"
+                  value={formData.firstName}
                   onChange={handleChange}
-                  error={!!errors.name}
-                  helperText={errors.name}
+                  error={!!errors.firstName}
+                  helperText={errors.firstName}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Person />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  name="lastName"
+                  label="Last Name"
+                  value={formData.lastName}
+                  onChange={handleChange}
+                  error={!!errors.lastName}
+                  helperText={errors.lastName}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -453,12 +485,110 @@ const Register = () => {
                 />
               </Grid>
 
+              {/* Address Information */}
+              <Grid item xs={12}>
+                <Divider sx={{ my: 2 }}>
+                  <Typography variant="h6" color="text.secondary">
+                    Address Information
+                  </Typography>
+                </Divider>
+              </Grid>
+
+              <Grid item xs={12} sm={8}>
+                <TextField
+                  fullWidth
+                  name="street"
+                  label="Street Name"
+                  value={formData.street}
+                  onChange={handleChange}
+                  error={!!errors.street}
+                  helperText={errors.street}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <LocationOn />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  fullWidth
+                  name="streetNumber"
+                  label="Street Number"
+                  value={formData.streetNumber}
+                  onChange={handleChange}
+                  error={!!errors.streetNumber}
+                  helperText={errors.streetNumber}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Home />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  name="city"
+                  label="City"
+                  value={formData.city}
+                  onChange={handleChange}
+                  error={!!errors.city}
+                  helperText={errors.city}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <LocationCity />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  name="postCode"
+                  label="Post Code"
+                  value={formData.postCode}
+                  onChange={handleChange}
+                  error={!!errors.postCode}
+                  helperText={errors.postCode}
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  name="state"
+                  label="State/Province (Optional)"
+                  value={formData.state}
+                  onChange={handleChange}
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  name="country"
+                  label="Country (Optional)"
+                  value={formData.country}
+                  onChange={handleChange}
+                />
+              </Grid>
+
               {/* Role-specific fields */}
               {formData.role && (
                 <>
                   <Grid item xs={12}>
-                    <Divider sx={{ my: 1 }}>
-                      <Typography variant="body2" color="text.secondary">
+                    <Divider sx={{ my: 2 }}>
+                      <Typography variant="h6" color="text.secondary">
                         {formData.role === 'doctor' ? 'Professional Information' : 'Company Information'}
                       </Typography>
                     </Divider>
@@ -474,7 +604,7 @@ const Register = () => {
                   variant="contained"
                   size="large"
                   disabled={loading}
-                  sx={{ mt: 2, mb: 2 }}
+                  sx={{ mt: 3, mb: 2 }}
                 >
                   {loading ? 'Creating Account...' : 'Create Account'}
                 </Button>

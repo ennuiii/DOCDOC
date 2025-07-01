@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link as RouterLink, Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link as RouterLink, Navigate, useLocation } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -12,16 +12,33 @@ import {
   Alert,
   CircularProgress,
 } from '@mui/material';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../contexts/AuthContext';
+import { useSnackbar } from 'notistack';
 
 const Login = () => {
-  const { user, login, loading } = useAuth();
+  const { user, signIn, loading } = useAuth();
+  const { enqueueSnackbar } = useSnackbar();
+  const location = useLocation();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [confirmationMessage, setConfirmationMessage] = useState('');
+
+  // Check for registration confirmation message
+  useEffect(() => {
+    if (location.state?.message) {
+      setConfirmationMessage(location.state.message);
+      // Pre-fill email if provided
+      if (location.state.email) {
+        setFormData(prev => ({ ...prev, email: location.state.email }));
+      }
+      // Clear the location state to avoid showing message on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   // Redirect if already logged in
   if (user) {
@@ -74,12 +91,27 @@ const Login = () => {
     }
 
     setIsSubmitting(true);
-    const result = await login(formData.email, formData.password);
     
-    if (!result.success) {
-      setErrors({ submit: result.error });
+    try {
+      const result = await signIn(formData.email, formData.password);
+      
+      if (result.success) {
+        enqueueSnackbar('Login successful!', { variant: 'success', autoHideDuration: 1500 });
+        
+        // Navigation is handled by route protection, but we can add specific logic here
+        const { role } = result.user;
+        if (role === 'doctor') {
+          // Navigate to timeslots will happen automatically
+        } else if (role === 'pharma') {
+          // Navigate to appointments will happen automatically
+        }
+      }
+    } catch (error) {
+      setErrors({ submit: error.message });
+      enqueueSnackbar(error.message, { variant: 'error' });
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
 
   if (loading) {
@@ -117,6 +149,12 @@ const Login = () => {
             <Typography component="h2" variant="h5" align="center" sx={{ mb: 3 }}>
               Sign In
             </Typography>
+
+            {confirmationMessage && (
+              <Alert severity="success" sx={{ mb: 2 }}>
+                {confirmationMessage}
+              </Alert>
+            )}
 
             {errors.submit && (
               <Alert severity="error" sx={{ mb: 2 }}>

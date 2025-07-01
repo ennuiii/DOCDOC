@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticate } from '../middleware/auth.js';
+import { authenticateSupabase } from '../middleware/supabaseAuth.js';
 import {
   getNotifications,
   markAsRead,
@@ -10,8 +10,8 @@ import {
 
 const router = express.Router();
 
-// All routes require authentication
-router.use(authenticate);
+// All routes require Supabase authentication
+router.use(authenticateSupabase);
 
 // Get notifications
 router.get('/', getNotifications);
