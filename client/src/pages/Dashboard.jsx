@@ -57,6 +57,12 @@ import {
 } from 'recharts';
 import { useSnackbar } from 'notistack';
 import { useQueryClient } from 'react-query';
+import StatCard from '../components/ui/StatCard';
+import GradientCard from '../components/ui/GradientCard';
+import AnimatedButton from '../components/ui/AnimatedButton';
+import FloatingCard, { SpotlightCard } from '../components/ui/FloatingCard';
+import { BackgroundEffects } from '../components/ui/BackgroundEffects';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -322,30 +328,7 @@ const Dashboard = () => {
     return appointmentTime.format('MMM D');
   };
 
-  const StatCard = ({ title, value, icon, color, subtext }) => (
-    <Card sx={{ height: '100%' }}>
-      <CardContent>
-        <Box display="flex" alignItems="center" justifyContent="space-between">
-          <Box>
-            <Typography color="text.secondary" gutterBottom variant="body2">
-              {title}
-            </Typography>
-            <Typography variant="h4" component="div">
-              {value}
-            </Typography>
-            {subtext && (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                {subtext}
-              </Typography>
-            )}
-          </Box>
-          <Avatar sx={{ bgcolor: color, width: 56, height: 56 }}>
-            {icon}
-          </Avatar>
-        </Box>
-      </CardContent>
-    </Card>
-  );
+  // Removed old StatCard component - now using the new one from components/ui
 
   const COLORS = {
     scheduled: '#2196F3',
@@ -438,23 +421,54 @@ const Dashboard = () => {
   }
 
   return (
-    <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4">Doctor Dashboard</Typography>
-        <Box display="flex" alignItems="center" gap={2}>
-          {pendingActions?.length > 0 && (
-            <Chip
-              icon={<NotificationIcon />}
-              label={`${pendingActions.length} appointments need confirmation`}
-              color="warning"
-              onClick={() => navigate('/appointments')}
-            />
-          )}
-          <Typography variant="subtitle1" color="text.secondary">
-            Welcome back, {user?.role === 'doctor' ? 'Dr.' : ''} {user?.first_name} {user?.last_name}
-          </Typography>
-        </Box>
-      </Box>
+    <BackgroundEffects variant="mixed">
+      <Box>
+        <FloatingCard
+          floating={false}
+          sx={{
+            mb: 3,
+            background: 'rgba(255, 255, 255, 0.9)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+          }}
+        >
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Box>
+              <Typography
+                variant="h4"
+                sx={{
+                  fontWeight: 700,
+                  background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
+                  backgroundClip: 'text',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                Doctor Dashboard
+              </Typography>
+              <Typography variant="subtitle1" color="text.secondary" sx={{ mt: 0.5 }}>
+                Welcome back, {user?.role === 'doctor' ? 'Dr.' : ''} {user?.first_name} {user?.last_name}
+              </Typography>
+            </Box>
+            <Box display="flex" alignItems="center" gap={2}>
+              {pendingActions?.length > 0 && (
+                <Chip
+                  icon={<NotificationIcon />}
+                  label={`${pendingActions.length} appointments need confirmation`}
+                  color="warning"
+                  onClick={() => navigate('/appointments')}
+                  sx={{
+                    animation: 'pulse 2s infinite',
+                    '@keyframes pulse': {
+                      '0%, 100%': { opacity: 1 },
+                      '50%': { opacity: 0.7 },
+                    },
+                  }}
+                />
+              )}
+            </Box>
+          </Box>
+        </FloatingCard>
 
       {/* Statistics Cards */}
       <Grid container spacing={3} mb={3}>
@@ -463,8 +477,11 @@ const Dashboard = () => {
             title="Today's Appointments"
             value={stats?.todayCount || 0}
             icon={<TodayIcon />}
-            color="primary.main"
-            subtext={`${stats?.availableSlots || 0} slots available`}
+            color="primary"
+            subtitle={`${stats?.availableSlots || 0} slots available`}
+            variant="elevated"
+            trend={stats?.todayCount > 0 ? 'up' : undefined}
+            onClick={() => navigate('/appointments')}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
@@ -472,8 +489,12 @@ const Dashboard = () => {
             title="This Week"
             value={stats?.weekCount || 0}
             icon={<CalendarIcon />}
-            color="secondary.main"
-            subtext={`${stats?.completedThisWeek || 0} completed`}
+            color="secondary"
+            subtitle={`${stats?.completedThisWeek || 0} completed`}
+            variant="gradient"
+            trend="up"
+            trendValue={`+${stats?.completedThisWeek || 0}`}
+            onClick={() => navigate('/appointments')}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
@@ -481,8 +502,11 @@ const Dashboard = () => {
             title="Completion Rate"
             value={stats?.monthStats?.completionRate ? `${stats.monthStats.completionRate}%` : '0%'}
             icon={<TrendingIcon />}
-            color="success.main"
-            subtext="This month"
+            color="success"
+            subtitle="This month"
+            variant="glass"
+            trend="up"
+            onClick={() => navigate('/appointments')}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
@@ -490,8 +514,10 @@ const Dashboard = () => {
             title="Pharma Companies"
             value={stats?.monthStats?.uniqueCompanies || 0}
             icon={<CompanyIcon />}
-            color="warning.main"
-            subtext="This month"
+            color="warning"
+            subtitle="This month"
+            variant="elevated"
+            onClick={() => navigate('/research')}
           />
         </Grid>
       </Grid>
@@ -500,10 +526,10 @@ const Dashboard = () => {
         {/* Calendar and Today's Schedule */}
         <Grid item xs={12} md={8}>
           {/* Analytics Charts */}
-          <Grid container spacing={2} mb={3}>
+          <Grid container spacing={3} mb={3}>
             <Grid item xs={12} md={6}>
-              <Paper sx={{ p: 2 }}>
-                <Typography variant="h6" gutterBottom>
+              <GradientCard variant="primary" sx={{ height: '100%' }}>
+                <Typography variant="h6" gutterBottom sx={{ color: 'white', fontWeight: 600 }}>
                   Appointment Status (This Month)
                 </Typography>
                 <ResponsiveContainer width="100%" height={250}>
@@ -525,38 +551,45 @@ const Dashboard = () => {
                     <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
-              </Paper>
+              </GradientCard>
             </Grid>
             <Grid item xs={12} md={6}>
-              <Paper sx={{ p: 2 }}>
-                <Typography variant="h6" gutterBottom>
+              <GradientCard variant="secondary" sx={{ height: '100%' }}>
+                <Typography variant="h6" gutterBottom sx={{ color: 'white', fontWeight: 600 }}>
                   Meeting Types
                 </Typography>
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={meetingTypeData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="value">
-                      {meetingTypeData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={meetingTypeColors[entry.name.toLowerCase().replace(' ', '-')] || '#666'} />
-                      ))}
-                    </Bar>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.2)" />
+                    <XAxis dataKey="name" stroke="white" />
+                    <YAxis stroke="white" />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        border: 'none',
+                        borderRadius: '8px',
+                        color: 'white'
+                      }}
+                    />
+                    <Bar dataKey="value" fill="rgba(255,255,255,0.8)" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
-              </Paper>
+              </GradientCard>
             </Grid>
           </Grid>
 
-          <Paper sx={{ p: 2, mb: 3 }}>
-            <Typography variant="h6" gutterBottom>
+          <SpotlightCard sx={{ p: 3, mb: 3 }} spotlightColor="#2563eb">
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
               Today's Schedule - {selectedDate.format('MMMM D, YYYY')}
             </Typography>
-            <Divider sx={{ mb: 2 }} />
+            <Divider sx={{ mb: 2, borderColor: 'rgba(37, 99, 235, 0.1)' }} />
             
             {loadingAppointments ? (
-              <LinearProgress />
+              <LoadingSpinner
+                variant="inline"
+                message="Loading today's appointments..."
+                size={32}
+              />
             ) : todayAppointments?.length === 0 ? (
               <Box textAlign="center" py={4}>
                 <Typography color="text.secondary">
@@ -648,44 +681,56 @@ const Dashboard = () => {
                 ))}
               </List>
             )}
-          </Paper>
+          </SpotlightCard>
 
           {/* Quick Actions */}
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
+          <Paper
+            sx={{
+              p: 3,
+              borderRadius: 3,
+              background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+              border: '1px solid #e2e8f0',
+            }}
+          >
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
               Quick Actions
             </Typography>
-            <Grid container spacing={2}>
+            <Grid container spacing={3}>
               <Grid item xs={12} sm={6} md={4}>
-                <Button
+                <AnimatedButton
                   fullWidth
                   variant="contained"
                   startIcon={<CalendarIcon />}
                   onClick={() => navigate('/timeslots')}
+                  animationType="gradient"
+                  sx={{ py: 1.5 }}
                 >
                   Manage Timeslots
-                </Button>
+                </AnimatedButton>
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
-                <Button
+                <AnimatedButton
                   fullWidth
                   variant="outlined"
                   startIcon={<AppointmentIcon />}
                   onClick={() => navigate('/appointments')}
+                  animationType="glow"
+                  sx={{ py: 1.5 }}
                 >
                   View All Appointments
-                </Button>
+                </AnimatedButton>
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
-                <Button
+                <AnimatedButton
                   fullWidth
                   variant="outlined"
                   startIcon={<PeopleIcon />}
                   onClick={() => navigate('/staff')}
                   disabled
+                  sx={{ py: 1.5 }}
                 >
                   Manage Staff
-                </Button>
+                </AnimatedButton>
               </Grid>
             </Grid>
           </Paper>
@@ -776,6 +821,7 @@ const Dashboard = () => {
         </Grid>
       </Grid>
     </Box>
+    </BackgroundEffects>
   );
 };
 
@@ -1050,30 +1096,7 @@ const PharmaDashboard = ({ user }) => {
     }
   );
 
-  const StatCard = ({ title, value, icon, color, subtext }) => (
-    <Card sx={{ height: '100%' }}>
-      <CardContent>
-        <Box display="flex" alignItems="center" justifyContent="space-between">
-          <Box>
-            <Typography color="text.secondary" gutterBottom variant="body2">
-              {title}
-            </Typography>
-            <Typography variant="h4" component="div">
-              {value}
-            </Typography>
-            {subtext && (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                {subtext}
-              </Typography>
-            )}
-          </Box>
-          <Avatar sx={{ bgcolor: color, width: 56, height: 56 }}>
-            {icon}
-          </Avatar>
-        </Box>
-      </CardContent>
-    </Card>
-  );
+  // Using the new StatCard component from components/ui
 
   return (
     <Box>
@@ -1091,8 +1114,10 @@ const PharmaDashboard = ({ user }) => {
             title="Today's Appointments"
             value={pharmaStats?.todayCount || 0}
             icon={<TodayIcon />}
-            color="primary.main"
-            subtext="Scheduled meetings"
+            color="primary"
+            subtitle="Scheduled meetings"
+            variant="pharma"
+            onClick={() => navigate('/appointments')}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
@@ -1100,8 +1125,12 @@ const PharmaDashboard = ({ user }) => {
             title="This Week"
             value={pharmaStats?.weekCount || 0}
             icon={<CalendarIcon />}
-            color="secondary.main"
-            subtext={`${pharmaStats?.completedThisWeek || 0} completed`}
+            color="secondary"
+            subtitle={`${pharmaStats?.completedThisWeek || 0} completed`}
+            variant="gradient"
+            trend="up"
+            trendValue={`+${pharmaStats?.completedThisWeek || 0}`}
+            onClick={() => navigate('/appointments')}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
@@ -1109,8 +1138,10 @@ const PharmaDashboard = ({ user }) => {
             title="Doctors Met"
             value={pharmaStats?.uniqueDoctors || 0}
             icon={<PeopleIcon />}
-            color="success.main"
-            subtext="This month"
+            color="success"
+            subtitle="This month"
+            variant="glass"
+            onClick={() => navigate('/research')}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
@@ -1118,8 +1149,10 @@ const PharmaDashboard = ({ user }) => {
             title="Specializations"
             value={pharmaStats?.uniqueSpecializations || 0}
             icon={<CategoryIcon />}
-            color="warning.main"
-            subtext="Different fields"
+            color="warning"
+            subtitle="Different fields"
+            variant="elevated"
+            onClick={() => navigate('/research')}
           />
         </Grid>
       </Grid>

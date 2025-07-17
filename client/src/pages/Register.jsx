@@ -1,10 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
-  Container,
-  Paper,
   TextField,
-  Button,
   Typography,
   Box,
   Alert,
@@ -17,6 +14,10 @@ import {
   IconButton,
   Divider,
   FormHelperText,
+  Paper,
+  Stepper,
+  Step,
+  StepLabel,
 } from '@mui/material';
 import {
   Visibility,
@@ -32,9 +33,13 @@ import {
   Assignment,
   Home,
   LocationCity,
+  ArrowBack,
+  ArrowForward,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { useSnackbar } from 'notistack';
+import AnimatedButton from '../components/ui/AnimatedButton';
+import GlassCard from '../components/ui/GlassCard';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -329,161 +334,317 @@ const Register = () => {
   };
 
   return (
-    <Container component="main" maxWidth="md">
+    <Box
+      sx={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 2,
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Background decorative elements */}
       <Box
         sx={{
-          marginTop: 8,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
+          position: 'absolute',
+          top: -100,
+          right: -100,
+          width: 300,
+          height: 300,
+          borderRadius: '50%',
+          background: 'rgba(255, 255, 255, 0.1)',
+          animation: 'float 6s ease-in-out infinite',
+        }}
+      />
+      <Box
+        sx={{
+          position: 'absolute',
+          bottom: -150,
+          left: -150,
+          width: 400,
+          height: 400,
+          borderRadius: '50%',
+          background: 'rgba(255, 255, 255, 0.05)',
+          animation: 'float 8s ease-in-out infinite reverse',
+        }}
+      />
+
+      <GlassCard
+        intensity="medium"
+        sx={{
+          width: '100%',
+          maxWidth: 800,
+          p: 4,
+          animation: 'slideUp 0.6s ease-out',
         }}
       >
-        <Paper elevation={3} sx={{ padding: 4, width: '100%' }}>
-          <Typography component="h1" variant="h4" align="center" gutterBottom>
-            Create Account
+        {/* Header */}
+        <Box textAlign="center" mb={4}>
+          <Typography
+            variant="h3"
+            component="h1"
+            sx={{
+              fontWeight: 700,
+              background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
+              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              mb: 1,
+            }}
+          >
+            Join Pharmadoc
           </Typography>
-          <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 3 }}>
-            Join Pharmadoc to connect doctors and pharmaceutical companies
+          <Typography
+            variant="body1"
+            color="text.secondary"
+            sx={{ mb: 2, fontWeight: 500 }}
+          >
+            Connect with healthcare professionals and pharmaceutical companies
           </Typography>
+        </Box>
 
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
-          )}
+        {error && (
+          <Alert
+            severity="error"
+            sx={{
+              mb: 3,
+              borderRadius: 2,
+              animation: 'fadeIn 0.5s ease-in-out',
+            }}
+          >
+            {error}
+          </Alert>
+        )}
 
-          <Box component="form" onSubmit={handleSubmit}>
-            <Grid container spacing={2}>
-              {/* Basic Information */}
-              <Grid item xs={12}>
-                <Typography variant="h6" gutterBottom>
-                  Basic Information
+        <Box component="form" onSubmit={handleSubmit}>
+          <Grid container spacing={3}>
+            {/* Role Selection */}
+            <Grid item xs={12}>
+              <Paper
+                sx={{
+                  p: 3,
+                  borderRadius: 3,
+                  background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                  border: '1px solid #bae6fd',
+                }}
+              >
+                <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: '#0369a1' }}>
+                  I am a...
                 </Typography>
-              </Grid>
-
-              <Grid item xs={12}>
                 <FormControl fullWidth error={!!errors.role}>
-                  <InputLabel>I am a...</InputLabel>
                   <Select
                     name="role"
                     value={formData.role}
                     onChange={handleChange}
-                    label="I am a..."
+                    displayEmpty
+                    sx={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                      borderRadius: 2,
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        border: 'none',
+                      },
+                    }}
                   >
-                    <MenuItem value="doctor">Doctor</MenuItem>
-                    <MenuItem value="pharma">Pharmaceutical Representative</MenuItem>
+                    <MenuItem value="" disabled>
+                      Select your role
+                    </MenuItem>
+                    <MenuItem value="doctor">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <LocalHospital sx={{ color: '#059669' }} />
+                        Doctor / Healthcare Professional
+                      </Box>
+                    </MenuItem>
+                    <MenuItem value="pharma">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Business sx={{ color: '#7c3aed' }} />
+                        Pharmaceutical Representative
+                      </Box>
+                    </MenuItem>
                   </Select>
                   {errors.role && <FormHelperText>{errors.role}</FormHelperText>}
                 </FormControl>
-              </Grid>
+              </Paper>
+            </Grid>
 
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  name="firstName"
-                  label="First Name"
-                  value={formData.firstName}
-                  onChange={handleChange}
-                  error={!!errors.firstName}
-                  helperText={errors.firstName}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Person />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Grid>
+            {/* Personal Information */}
+            <Grid item xs={12}>
+              <Divider sx={{ my: 2 }}>
+                <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 600 }}>
+                  Personal Information
+                </Typography>
+              </Divider>
+            </Grid>
 
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  name="lastName"
-                  label="Last Name"
-                  value={formData.lastName}
-                  onChange={handleChange}
-                  error={!!errors.lastName}
-                  helperText={errors.lastName}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Person />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                name="firstName"
+                label="First Name"
+                value={formData.firstName}
+                onChange={handleChange}
+                error={!!errors.firstName}
+                helperText={errors.firstName}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Person sx={{ color: 'text.secondary' }} />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    },
+                    '&.Mui-focused': {
+                      backgroundColor: 'white',
+                    },
+                  },
+                }}
+              />
+            </Grid>
 
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  name="email"
-                  label="Email Address"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  error={!!errors.email}
-                  helperText={errors.email}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Email />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                name="lastName"
+                label="Last Name"
+                value={formData.lastName}
+                onChange={handleChange}
+                error={!!errors.lastName}
+                helperText={errors.lastName}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Person sx={{ color: 'text.secondary' }} />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    },
+                    '&.Mui-focused': {
+                      backgroundColor: 'white',
+                    },
+                  },
+                }}
+              />
+            </Grid>
 
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  name="password"
-                  label="Password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={formData.password}
-                  onChange={handleChange}
-                  error={!!errors.password}
-                  helperText={errors.password}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Lock />
-                      </InputAdornment>
-                    ),
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton
-                          onClick={() => setShowPassword(!showPassword)}
-                          edge="end"
-                        >
-                          {showPassword ? <VisibilityOff /> : <Visibility />}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                name="email"
+                label="Email Address"
+                type="email"
+                value={formData.email}
+                onChange={handleChange}
+                error={!!errors.email}
+                helperText={errors.email}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Email sx={{ color: 'text.secondary' }} />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    },
+                    '&.Mui-focused': {
+                      backgroundColor: 'white',
+                    },
+                  },
+                }}
+              />
+            </Grid>
 
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  name="confirmPassword"
-                  label="Confirm Password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  error={!!errors.confirmPassword}
-                  helperText={errors.confirmPassword}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Lock />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                name="password"
+                label="Password"
+                type={showPassword ? 'text' : 'password'}
+                value={formData.password}
+                onChange={handleChange}
+                error={!!errors.password}
+                helperText={errors.password}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Lock sx={{ color: 'text.secondary' }} />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => setShowPassword(!showPassword)}
+                        edge="end"
+                      >
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    },
+                    '&.Mui-focused': {
+                      backgroundColor: 'white',
+                    },
+                  },
+                }}
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                name="confirmPassword"
+                label="Confirm Password"
+                type={showPassword ? 'text' : 'password'}
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                error={!!errors.confirmPassword}
+                helperText={errors.confirmPassword}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Lock sx={{ color: 'text.secondary' }} />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    },
+                    '&.Mui-focused': {
+                      backgroundColor: 'white',
+                    },
+                  },
+                }}
+              />
+            </Grid>
 
               {/* Address Information */}
               <Grid item xs={12}>
@@ -597,34 +758,56 @@ const Register = () => {
                 </>
               )}
 
-              <Grid item xs={12}>
-                <Button
-                  type="submit"
-                  fullWidth
-                  variant="contained"
-                  size="large"
-                  disabled={loading}
-                  sx={{ mt: 3, mb: 2 }}
-                >
-                  {loading ? 'Creating Account...' : 'Create Account'}
-                </Button>
-              </Grid>
-
-              <Grid item xs={12}>
-                <Box textAlign="center">
-                  <Typography variant="body2">
-                    Already have an account?{' '}
-                    <Link to="/login" style={{ textDecoration: 'none' }}>
-                      Sign in
-                    </Link>
-                  </Typography>
-                </Box>
-              </Grid>
+            <Grid item xs={12}>
+              <AnimatedButton
+                type="submit"
+                fullWidth
+                variant="contained"
+                animationType="gradient"
+                loading={loading}
+                loadingText="Creating Account..."
+                sx={{
+                  mt: 4,
+                  mb: 3,
+                  py: 1.5,
+                  fontSize: '1.1rem',
+                  fontWeight: 600,
+                }}
+              >
+                Create Account
+              </AnimatedButton>
             </Grid>
-          </Box>
-        </Paper>
-      </Box>
-    </Container>
+
+            <Grid item xs={12}>
+              <Divider sx={{ my: 2 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Already have an account?
+                </Typography>
+              </Divider>
+              <Box sx={{ textAlign: 'center' }}>
+                <Link
+                  to="/login"
+                  style={{
+                    color: '#2563eb',
+                    textDecoration: 'none',
+                    fontWeight: 500,
+                  }}
+                >
+                  Sign in to your account
+                </Link>
+              </Box>
+            </Grid>
+          </Grid>
+        </Box>
+      </GlassCard>
+
+      <style jsx>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-20px); }
+        }
+      `}</style>
+    </Box>
   );
 };
 

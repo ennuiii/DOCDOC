@@ -79,21 +79,64 @@ const Layout = ({ children }) => {
 
   const drawer = (
     <div>
-      <Toolbar>
-        <Typography variant="h6" noWrap component="div">
+      <Toolbar sx={{ px: 3, py: 2 }}>
+        <Typography
+          variant="h5"
+          noWrap
+          component="div"
+          sx={{
+            fontWeight: 700,
+            background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}
+        >
           Pharmadoc
         </Typography>
       </Toolbar>
-      <Divider />
-      <List>
+      <Divider sx={{ mx: 2, borderColor: '#e2e8f0' }} />
+      <List sx={{ px: 2, py: 1 }}>
         {filteredMenuItems.map((item) => (
-          <ListItem key={item.text} disablePadding>
+          <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
             <ListItemButton
               selected={location.pathname === item.path}
               onClick={() => navigate(item.path)}
+              sx={{
+                borderRadius: 2,
+                transition: 'all 0.2s ease-in-out',
+                '&.Mui-selected': {
+                  backgroundColor: '#eff6ff',
+                  color: '#2563eb',
+                  '&:hover': {
+                    backgroundColor: '#dbeafe',
+                  },
+                  '& .MuiListItemIcon-root': {
+                    color: '#2563eb',
+                  },
+                },
+                '&:hover': {
+                  backgroundColor: '#f8fafc',
+                  transform: 'translateX(4px)',
+                },
+              }}
             >
-              <ListItemIcon>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.text} />
+              <ListItemIcon
+                sx={{
+                  minWidth: 40,
+                  transition: 'color 0.2s ease-in-out',
+                }}
+              >
+                {item.icon}
+              </ListItemIcon>
+              <ListItemText
+                primary={item.text}
+                sx={{
+                  '& .MuiTypography-root': {
+                    fontWeight: location.pathname === item.path ? 600 : 500,
+                  },
+                }}
+              />
             </ListItemButton>
           </ListItem>
         ))}
@@ -210,9 +253,30 @@ const Layout = ({ children }) => {
           mt: 8,
           minHeight: 'calc(100vh - 64px)',
           width: '100%',
+          backgroundColor: '#f8fafc',
+          position: 'relative',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '1px',
+            background: 'linear-gradient(90deg, transparent, #e2e8f0, transparent)',
+          },
         }}
       >
-        {children}
+        <Box
+          sx={{
+            animation: 'fadeIn 0.5s ease-in-out',
+            '@keyframes fadeIn': {
+              from: { opacity: 0, transform: 'translateY(10px)' },
+              to: { opacity: 1, transform: 'translateY(0)' },
+            },
+          }}
+        >
+          {children}
+        </Box>
       </Box>
     </Box>
   );

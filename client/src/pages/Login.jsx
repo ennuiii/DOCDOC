@@ -2,18 +2,29 @@ import { useState, useEffect } from 'react';
 import { Link as RouterLink, Navigate, useLocation } from 'react-router-dom';
 import {
   Box,
-  Button,
-  Card,
-  CardContent,
-  Container,
   TextField,
   Typography,
   Link,
   Alert,
   CircularProgress,
+  Paper,
+  Divider,
+  IconButton,
+  InputAdornment,
 } from '@mui/material';
+import {
+  Visibility,
+  VisibilityOff,
+  LocalHospital,
+  Science,
+  AdminPanelSettings,
+  Email,
+  Lock,
+} from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { useSnackbar } from 'notistack';
+import AnimatedButton from '../components/ui/AnimatedButton';
+import GlassCard from '../components/ui/GlassCard';
 
 const Login = () => {
   const { user, signIn, loading } = useAuth();
@@ -26,6 +37,7 @@ const Login = () => {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmationMessage, setConfirmationMessage] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   // Check for registration confirmation message
   useEffect(() => {
@@ -128,100 +140,278 @@ const Login = () => {
   }
 
   return (
-    <Container component="main" maxWidth="xs">
+    <Box
+      sx={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 2,
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Background decorative elements */}
       <Box
         sx={{
-          marginTop: 8,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
+          position: 'absolute',
+          top: -100,
+          right: -100,
+          width: 300,
+          height: 300,
+          borderRadius: '50%',
+          background: 'rgba(255, 255, 255, 0.1)',
+          animation: 'float 6s ease-in-out infinite',
+        }}
+      />
+      <Box
+        sx={{
+          position: 'absolute',
+          bottom: -150,
+          left: -150,
+          width: 400,
+          height: 400,
+          borderRadius: '50%',
+          background: 'rgba(255, 255, 255, 0.05)',
+          animation: 'float 8s ease-in-out infinite reverse',
+        }}
+      />
+
+      <GlassCard
+        intensity="medium"
+        sx={{
+          width: '100%',
+          maxWidth: 480,
+          p: 4,
+          animation: 'slideUp 0.6s ease-out',
         }}
       >
-        <Typography component="h1" variant="h3" sx={{ mb: 1 }}>
-          Pharmadoc
-        </Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-          Connecting Doctors and Pharmaceutical Companies
-        </Typography>
+        {/* Header */}
+        <Box textAlign="center" mb={4}>
+          <Typography
+            variant="h3"
+            component="h1"
+            sx={{
+              fontWeight: 700,
+              background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
+              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              mb: 1,
+            }}
+          >
+            Pharmadoc
+          </Typography>
+          <Typography
+            variant="body1"
+            color="text.secondary"
+            sx={{ mb: 3, fontWeight: 500 }}
+          >
+            Connecting Healthcare Professionals
+          </Typography>
+          <Typography
+            variant="h5"
+            component="h2"
+            sx={{ fontWeight: 600, color: 'text.primary' }}
+          >
+            Welcome Back
+          </Typography>
+        </Box>
 
-        <Card sx={{ width: '100%' }}>
-          <CardContent>
-            <Typography component="h2" variant="h5" align="center" sx={{ mb: 3 }}>
-              Sign In
-            </Typography>
+        {/* Alerts */}
+        {confirmationMessage && (
+          <Alert
+            severity="success"
+            sx={{
+              mb: 3,
+              borderRadius: 2,
+              animation: 'fadeIn 0.5s ease-in-out',
+            }}
+          >
+            {confirmationMessage}
+          </Alert>
+        )}
 
-            {confirmationMessage && (
-              <Alert severity="success" sx={{ mb: 2 }}>
-                {confirmationMessage}
-              </Alert>
-            )}
+        {errors.submit && (
+          <Alert
+            severity="error"
+            sx={{
+              mb: 3,
+              borderRadius: 2,
+              animation: 'fadeIn 0.5s ease-in-out',
+            }}
+          >
+            {errors.submit}
+          </Alert>
+        )}
 
-            {errors.submit && (
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {errors.submit}
-              </Alert>
-            )}
-
-            {/* Test Credentials Info */}
-            <Alert severity="info" sx={{ mb: 3 }}>
-              <Typography variant="subtitle2" gutterBottom>
-                <strong>Test Credentials:</strong>
+        {/* Test Credentials */}
+        <Paper
+          sx={{
+            p: 3,
+            mb: 4,
+            borderRadius: 3,
+            background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+            border: '1px solid #bae6fd',
+          }}
+        >
+          <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600, color: '#0369a1' }}>
+            Demo Credentials
+          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <LocalHospital sx={{ fontSize: 16, color: '#0369a1' }} />
+              <Typography variant="body2" sx={{ color: '#0369a1' }}>
+                <strong>Doctor:</strong> doctor@test.com / doctor123
               </Typography>
-              <Typography variant="body2" component="div">
-                <strong>Doctor:</strong> doctor@test.com / doctor123<br />
-                <strong>Pharma:</strong> pharma@test.com / pharma123<br />
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Science sx={{ fontSize: 16, color: '#0369a1' }} />
+              <Typography variant="body2" sx={{ color: '#0369a1' }}>
+                <strong>Pharma:</strong> pharma@test.com / pharma123
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <AdminPanelSettings sx={{ fontSize: 16, color: '#0369a1' }} />
+              <Typography variant="body2" sx={{ color: '#0369a1' }}>
                 <strong>Admin:</strong> admin@test.com / admin123
               </Typography>
-            </Alert>
-
-            <Box component="form" onSubmit={handleSubmit} noValidate>
-              <TextField
-                margin="normal"
-                required
-                fullWidth
-                id="email"
-                label="Email Address"
-                name="email"
-                autoComplete="email"
-                autoFocus
-                value={formData.email}
-                onChange={handleChange}
-                error={!!errors.email}
-                helperText={errors.email}
-              />
-              <TextField
-                margin="normal"
-                required
-                fullWidth
-                name="password"
-                label="Password"
-                type="password"
-                id="password"
-                autoComplete="current-password"
-                value={formData.password}
-                onChange={handleChange}
-                error={!!errors.password}
-                helperText={errors.password}
-              />
-              <Button
-                type="submit"
-                fullWidth
-                variant="contained"
-                sx={{ mt: 3, mb: 2 }}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? <CircularProgress size={24} /> : 'Sign In'}
-              </Button>
-              <Box sx={{ textAlign: 'center' }}>
-                <Link component={RouterLink} to="/register" variant="body2">
-                  Don't have an account? Sign Up
-                </Link>
-              </Box>
             </Box>
-          </CardContent>
-        </Card>
-      </Box>
-    </Container>
+          </Box>
+        </Paper>
+
+        {/* Form */}
+        <Box component="form" onSubmit={handleSubmit} noValidate>
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            id="email"
+            label="Email Address"
+            name="email"
+            autoComplete="email"
+            autoFocus
+            value={formData.email}
+            onChange={handleChange}
+            error={!!errors.email}
+            helperText={errors.email}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Email sx={{ color: 'text.secondary' }} />
+                </InputAdornment>
+              ),
+            }}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 2,
+                backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                },
+                '&.Mui-focused': {
+                  backgroundColor: 'white',
+                },
+              },
+            }}
+          />
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            name="password"
+            label="Password"
+            type={showPassword ? 'text' : 'password'}
+            id="password"
+            autoComplete="current-password"
+            value={formData.password}
+            onChange={handleChange}
+            error={!!errors.password}
+            helperText={errors.password}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Lock sx={{ color: 'text.secondary' }} />
+                </InputAdornment>
+              ),
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="toggle password visibility"
+                    onClick={() => setShowPassword(!showPassword)}
+                    edge="end"
+                  >
+                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 2,
+                backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                },
+                '&.Mui-focused': {
+                  backgroundColor: 'white',
+                },
+              },
+            }}
+          />
+
+          <AnimatedButton
+            type="submit"
+            fullWidth
+            variant="contained"
+            animationType="gradient"
+            loading={isSubmitting}
+            loadingText="Signing In..."
+            sx={{
+              mt: 4,
+              mb: 3,
+              py: 1.5,
+              fontSize: '1.1rem',
+              fontWeight: 600,
+            }}
+          >
+            Sign In
+          </AnimatedButton>
+
+          <Divider sx={{ my: 3 }}>
+            <Typography variant="body2" color="text.secondary">
+              New to Pharmadoc?
+            </Typography>
+          </Divider>
+
+          <Box sx={{ textAlign: 'center' }}>
+            <Link
+              component={RouterLink}
+              to="/register"
+              variant="body2"
+              sx={{
+                color: 'primary.main',
+                textDecoration: 'none',
+                fontWeight: 500,
+                '&:hover': {
+                  textDecoration: 'underline',
+                },
+              }}
+            >
+              Create your account
+            </Link>
+          </Box>
+        </Box>
+      </GlassCard>
+
+      <style jsx>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-20px); }
+        }
+      `}</style>
+    </Box>
   );
 };
 
