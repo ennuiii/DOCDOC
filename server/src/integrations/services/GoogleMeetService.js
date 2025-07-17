@@ -2,6 +2,7 @@ import AuditLogger from './AuditLogger.js';
 import RateLimitManager from './RateLimitManager.js';
 import GoogleOAuthProvider from '../providers/google/GoogleOAuthProvider.js';
 import { google } from 'googleapis';
+import { supabaseAdmin } from '../../config/supabase.js';
 
 /**
  * Google Meet Service
@@ -11,11 +12,8 @@ import { google } from 'googleapis';
 export class GoogleMeetService {
   constructor() {
     this.auditLogger = new AuditLogger('GoogleMeetService');
-    this.rateLimiter = new RateLimitManager({
-      requests: 100,
-      window: 100000, // 100 seconds
-      burstLimit: 10
-    });
+    this.rateLimiter = new RateLimitManager();
+    this.supabase = supabaseAdmin();
     
     this.oauthProvider = new GoogleOAuthProvider();
     
@@ -34,16 +32,22 @@ export class GoogleMeetService {
    * Create a Google Meet meeting through Calendar API
    * @param {string} accessToken - Google access token
    * @param {Object} meetingData - Meeting configuration
+   * @param {string} refreshToken - Google refresh token for automatic refresh
    * @returns {Object} Created meeting details with Meet link
    */
-  async createGoogleMeet(accessToken, meetingData) {
+  async createGoogleMeet(accessToken, meetingData, refreshToken = null) {
     try {
-      await this.rateLimiter.checkLimit('create_meet');
+      const rateLimitCheck = await this.rateLimiter.checkRateLimit('google', meetingData.userId, 'calendar.events.insert');
+      if (!rateLimitCheck.allowed) {
+        throw new Error(`Rate limit exceeded: ${rateLimitCheck.reason}`);
+      }
       
-      this.auditLogger.logInfo('Creating Google Meet meeting', {
+      await this.auditLogger.logEvent('GOOGLE_MEET_CREATION_START', {
         userId: meetingData.userId,
-        subject: meetingData.subject
-      });
+        subject: meetingData.subject,
+        startDateTime: meetingData.startDateTime,
+        attendeeCount: meetingData.attendees?.length || 0
+      }, { userId: meetingData.userId, provider: 'google-meet' });
 
       const {
         userId,
@@ -58,8 +62,8 @@ export class GoogleMeetService {
         meetingSettings = {}
       } = meetingData;
 
-      // Get Google Calendar client
-      const calendar = await this.getCalendarClient(accessToken);
+      // Get Google Calendar client with token refresh capability
+      const calendar = await this.getCalendarClient(accessToken, refreshToken, meetingData.userId);
 
       // Prepare conference data for Google Meet
       const conferenceData = {
@@ -104,6 +108,9 @@ export class GoogleMeetService {
         sendUpdates: 'all' // Send invitations to attendees
       });
 
+      // Record the successful request for rate limiting
+      await this.rateLimiter.recordRequest('google', meetingData.userId, 'calendar.events.insert');
+
       const createdEvent = response.data;
       
       // Extract Google Meet details
@@ -112,11 +119,12 @@ export class GoogleMeetService {
       // Cache the meeting details
       this.cacheMeeting(meetingDetails.meetingId, meetingDetails);
 
-      this.auditLogger.logInfo('Google Meet meeting created successfully', {
+      await this.auditLogger.logEvent('GOOGLE_MEET_CREATION_SUCCESS', {
         eventId: createdEvent.id,
         meetingId: meetingDetails.meetingId,
-        meetUrl: meetingDetails.joinUrl
-      });
+        meetUrl: meetingDetails.joinUrl,
+        calendarId: createdEvent.organizer?.email
+      }, { userId: meetingData.userId, provider: 'google-meet' });
 
       return {
         success: true,
@@ -125,10 +133,11 @@ export class GoogleMeetService {
       };
 
     } catch (error) {
-      this.auditLogger.logError('Failed to create Google Meet meeting', {
+      await this.auditLogger.logEvent('GOOGLE_MEET_CREATION_ERROR', {
         error: error.message,
+        stack: error.stack,
         userId: meetingData.userId
-      });
+      }, { userId: meetingData.userId, provider: 'google-meet' });
       throw error;
     }
   }
@@ -162,13 +171,52 @@ export class GoogleMeetService {
   }
 
   /**
-   * Get Google Calendar client
+   * Get Google Calendar client with automatic token refresh
    * @param {string} accessToken - Access token
+   * @param {string} refreshToken - Refresh token
+   * @param {string} userId - User ID for token updates
    * @returns {Object} Calendar client
    */
-  async getCalendarClient(accessToken) {
-    const oauth2Client = new google.auth.OAuth2();
-    oauth2Client.setCredentials({ access_token: accessToken });
+  async getCalendarClient(accessToken, refreshToken = null, userId = null) {
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI
+    );
+    
+    oauth2Client.setCredentials({ 
+      access_token: accessToken,
+      refresh_token: refreshToken
+    });
+    
+    // Handle token refresh automatically
+    if (refreshToken && userId) {
+      oauth2Client.on('tokens', async (tokens) => {
+        console.log('🔄 Google tokens refreshed automatically');
+        
+        try {
+          // Update tokens in database
+          const { error } = await this.supabase
+            .from('user_integrations')
+            .update({
+              access_token: tokens.access_token,
+              expires_at: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
+              refresh_token: tokens.refresh_token || refreshToken,
+              updated_at: new Date().toISOString()
+            })
+            .eq('user_id', userId)
+            .eq('provider', 'google');
+            
+          if (error) {
+            console.error('❌ Failed to update refreshed tokens:', error);
+          } else {
+            console.log('✅ Refreshed tokens saved to database');
+          }
+        } catch (error) {
+          console.error('❌ Token refresh database update error:', error);
+        }
+      });
+    }
     
     return google.calendar({ version: 'v3', auth: oauth2Client });
   }

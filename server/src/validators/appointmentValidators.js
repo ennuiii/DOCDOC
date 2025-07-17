@@ -3,7 +3,7 @@ import { body, query, param } from 'express-validator';
 // Create appointment validator
 export const createAppointmentValidator = [
   body('timeslotId')
-    .isMongoId()
+    .isUUID()
     .withMessage('Valid timeslot ID is required'),
   body('purpose')
     .notEmpty()
@@ -32,13 +32,29 @@ export const createAppointmentValidator = [
   body('meetingType')
     .optional()
     .isIn(['in-person', 'virtual', 'phone'])
-    .withMessage('Invalid meeting type')
+    .withMessage('Invalid meeting type'),
+  body('videoProvider')
+    .optional()
+    .isIn(['google_meet', 'zoom'])  // DISABLED: microsoft_teams (requires admin consent for multi-tenant SaaS)
+    .withMessage('Invalid video provider'),
+  body('meetingAccess')
+    .optional()
+    .isIn(['open', 'restricted', 'approval-required'])
+    .withMessage('Invalid meeting access type'),
+  body('allowRecording')
+    .optional()
+    .isBoolean()
+    .withMessage('Allow recording must be a boolean'),
+  body('requirePassword')
+    .optional()
+    .isBoolean()
+    .withMessage('Require password must be a boolean')
 ];
 
 // Update appointment validator
 export const updateAppointmentValidator = [
   param('id')
-    .isMongoId()
+    .isUUID()
     .withMessage('Valid appointment ID is required'),
   body('purpose')
     .optional()
@@ -88,11 +104,11 @@ export const getAppointmentsValidator = [
     .withMessage('Valid end date is required'),
   query('doctorId')
     .optional()
-    .isMongoId()
+    .isUUID()
     .withMessage('Valid doctor ID is required'),
   query('pharmaRepId')
     .optional()
-    .isMongoId()
+    .isUUID()
     .withMessage('Valid pharma rep ID is required'),
   query('page')
     .optional()
@@ -108,7 +124,7 @@ export const getAppointmentsValidator = [
 export const getAvailableTimeslotsValidator = [
   query('doctorId')
     .optional()
-    .isMongoId()
+    .isUUID()
     .withMessage('Valid doctor ID is required'),
   query('specialization')
     .optional()
@@ -142,7 +158,7 @@ export const getAvailableTimeslotsValidator = [
 // Cancel appointment validator
 export const cancelAppointmentValidator = [
   param('id')
-    .isMongoId()
+    .isUUID()
     .withMessage('Valid appointment ID is required'),
   body('reason')
     .notEmpty()
@@ -154,7 +170,7 @@ export const cancelAppointmentValidator = [
 // Add feedback validator
 export const addFeedbackValidator = [
   param('id')
-    .isMongoId()
+    .isUUID()
     .withMessage('Valid appointment ID is required'),
   body('rating')
     .isInt({ min: 1, max: 5 })
@@ -168,6 +184,6 @@ export const addFeedbackValidator = [
 // ID parameter validator
 export const idParamValidator = [
   param('id')
-    .isMongoId()
+    .isUUID()
     .withMessage('Valid appointment ID is required')
 ]; 

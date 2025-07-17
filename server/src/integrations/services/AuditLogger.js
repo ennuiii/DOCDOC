@@ -179,6 +179,23 @@ class AuditLogger {
     }
 
     /**
+     * Generic log method for direct winston logging
+     * @param {string} level - Log level (error, warn, info, debug, etc.)
+     * @param {string} message - Log message
+     * @param {Object} metadata - Additional metadata
+     */
+    log(level, message, metadata = {}) {
+        try {
+            const maskedMetadata = this.maskSensitiveData(metadata);
+            this.logger.log(level, message, maskedMetadata);
+        } catch (error) {
+            // Fallback to console if winston fails
+            console.error('Winston logging failed:', error);
+            console.log(`[${level.toUpperCase()}] ${message}`, metadata);
+        }
+    }
+
+    /**
      * Log integration event with audit trail
      * @param {string} eventType - Event type
      * @param {Object} data - Event data
@@ -243,10 +260,21 @@ class AuditLogger {
                 });
 
             if (error) {
-                console.error('Database audit log storage error:', error);
+                // Don't fail the entire operation if audit logging fails
+                if (error.code === '42P01' || (error.message && error.message.includes('does not exist'))) {
+                    console.warn('⚠️ Audit log table does not exist. Skipping database storage.');
+                    // Log to file instead
+                    this.logger.info('Audit log (table missing)', logEntry);
+                } else {
+                    console.error('Database audit log storage error:', error);
+                    // Fall back to file logging
+                    this.logger.error('Audit log storage failed', { error: error.message || 'Unknown error', logEntry });
+                }
             }
         } catch (error) {
             console.error('Audit log database error:', error);
+            // Always fall back to file logging
+            this.logger.error('Audit log database exception', { error: error.message, logEntry });
         }
     }
 

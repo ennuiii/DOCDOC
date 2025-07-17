@@ -1,65 +1,97 @@
-import Notification from '../models/Notification.js';
+import { supabaseAdmin } from '../config/supabase.js';
 
 class NotificationService {
+  // Helper method to create notification in Supabase
+  static async createNotification(data) {
+    try {
+      const supabase = supabaseAdmin();
+      const { data: notification, error } = await supabase
+        .from('notifications')
+        .insert([{
+          recipient_id: data.recipient,
+          type: data.type,
+          title: data.title,
+          message: data.message,
+          data: data.data || {},
+          read: false,
+          priority: data.priority || 'medium'
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating notification:', error);
+        throw error;
+      }
+
+      console.log('📨 Notification created:', notification);
+      return notification;
+    } catch (error) {
+      console.error('Error in createNotification:', error);
+      // Don't throw error to prevent breaking the main flow
+      return null;
+    }
+  }
+
   // Appointment notifications
-  static async notifyAppointmentScheduled(appointment) {
-    await Notification.createNotification({
-      recipient: appointment.doctor,
+  static async notifyAppointmentScheduled(data) {
+    await this.createNotification({
+      recipient: data.doctor?._id || data.doctorId,
       type: 'appointment-scheduled',
       title: 'New Appointment Scheduled',
-      message: `${appointment.pharmaRep.profile.firstName} ${appointment.pharmaRep.profile.lastName} from ${appointment.pharmaRep.profile.companyName} has scheduled an appointment on ${appointment.timeslot.date} at ${appointment.timeslot.startTime}`,
+      message: `${data.pharmaRep?.profile?.firstName || data.pharmaRepName} from ${data.pharmaRep?.profile?.companyName || data.companyName} has scheduled an appointment on ${data.timeslot?.date || data.date} at ${data.timeslot?.startTime || data.startTime}`,
       data: {
-        appointmentId: appointment._id,
+        appointmentId: data._id || data.appointmentId,
         link: `/appointments`,
       },
       priority: 'high',
     });
   }
 
-  static async notifyAppointmentConfirmed(appointment) {
-    await Notification.createNotification({
-      recipient: appointment.pharmaRep,
+  static async notifyAppointmentConfirmed(data) {
+    await this.createNotification({
+      recipient: data.pharmaRep?._id || data.pharmaRepId,
       type: 'appointment-confirmed',
       title: 'Appointment Confirmed',
-      message: `Your appointment with Dr. ${appointment.doctor.profile.lastName} on ${appointment.timeslot.date} at ${appointment.timeslot.startTime} has been confirmed`,
+      message: `Your appointment with Dr. ${data.doctor?.profile?.lastName || data.doctorName} on ${data.timeslot?.date || data.date} at ${data.timeslot?.startTime || data.startTime} has been confirmed`,
       data: {
-        appointmentId: appointment._id,
+        appointmentId: data._id || data.appointmentId,
         link: `/appointments`,
       },
       priority: 'medium',
     });
   }
 
-  static async notifyAppointmentCancelled(appointment, cancelledBy, reason) {
-    const recipientId = cancelledBy.toString() === appointment.doctor.toString() 
-      ? appointment.pharmaRep 
-      : appointment.doctor;
+  static async notifyAppointmentCancelled(data, cancelledBy, reason) {
+    const recipientId = cancelledBy?.toString() === (data.doctor?._id || data.doctorId)?.toString() 
+      ? (data.pharmaRep?._id || data.pharmaRepId)
+      : (data.doctor?._id || data.doctorId);
     
-    const cancellerName = cancelledBy.toString() === appointment.doctor.toString()
-      ? `Dr. ${appointment.doctor.profile.lastName}`
-      : `${appointment.pharmaRep.profile.firstName} ${appointment.pharmaRep.profile.lastName}`;
+    const cancellerName = cancelledBy?.toString() === (data.doctor?._id || data.doctorId)?.toString()
+      ? `Dr. ${data.doctor?.profile?.lastName || data.doctorName || 'Doctor'}`
+      : `${data.pharmaRep?.profile?.firstName || data.pharmaRepName || 'Pharma Rep'}`;
 
-    await Notification.createNotification({
+    await this.createNotification({
       recipient: recipientId,
       type: 'appointment-cancelled',
       title: 'Appointment Cancelled',
-      message: `Your appointment on ${appointment.timeslot.date} at ${appointment.timeslot.startTime} has been cancelled by ${cancellerName}. Reason: ${reason}`,
+      message: `Your appointment on ${data.timeslot?.date || data.date} at ${data.timeslot?.startTime || data.startTime} has been cancelled by ${cancellerName}${reason ? `. Reason: ${reason}` : ''}`,
       data: {
-        appointmentId: appointment._id,
+        appointmentId: data._id || data.appointmentId,
         link: `/appointments`,
       },
       priority: 'high',
     });
   }
 
-  static async notifyAppointmentCompleted(appointment) {
-    await Notification.createNotification({
-      recipient: appointment.pharmaRep,
+  static async notifyAppointmentCompleted(data) {
+    await this.createNotification({
+      recipient: data.pharmaRep?._id || data.pharmaRepId,
       type: 'appointment-completed',
       title: 'Appointment Completed',
-      message: `Your appointment with Dr. ${appointment.doctor.profile.lastName} has been marked as completed. Thank you for your visit!`,
+      message: `Your appointment with Dr. ${data.doctor?.profile?.lastName || data.doctorName || 'Doctor'} has been marked as completed. Thank you for your visit!`,
       data: {
-        appointmentId: appointment._id,
+        appointmentId: data._id || data.appointmentId,
         link: `/appointments`,
       },
       priority: 'low',
@@ -69,7 +101,7 @@ class NotificationService {
   static async notifyAppointmentReminder(appointment) {
     // Notify both parties
     await Promise.all([
-      Notification.createNotification({
+      this.createNotification({
         recipient: appointment.doctor,
         type: 'appointment-reminder',
         title: 'Appointment Reminder',
@@ -80,7 +112,7 @@ class NotificationService {
         },
         priority: 'medium',
       }),
-      Notification.createNotification({
+      this.createNotification({
         recipient: appointment.pharmaRep,
         type: 'appointment-reminder',
         title: 'Appointment Reminder',
@@ -109,7 +141,7 @@ class NotificationService {
     }));
 
     await Promise.all(
-      notifications.map(notif => Notification.createNotification(notif))
+      notifications.map(notif => this.createNotification(notif))
     );
   }
 
@@ -128,7 +160,7 @@ class NotificationService {
     }));
 
     await Promise.all(
-      notifications.map(notif => Notification.createNotification(notif))
+      notifications.map(notif => this.createNotification(notif))
     );
   }
 
@@ -147,13 +179,13 @@ class NotificationService {
     }));
 
     await Promise.all(
-      notifications.map(notif => Notification.createNotification(notif))
+      notifications.map(notif => this.createNotification(notif))
     );
   }
 
   // System notifications
   static async notifySystemMessage(userId, title, message, priority = 'medium') {
-    await Notification.createNotification({
+    await this.createNotification({
       recipient: userId,
       type: 'system',
       title,
@@ -161,6 +193,75 @@ class NotificationService {
       data: {},
       priority,
     });
+  }
+
+  // Get notifications for user
+  static async getNotifications(userId, limit = 50) {
+    try {
+      const supabase = supabaseAdmin();
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('recipient_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) {
+        console.error('Error fetching notifications:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('Error in getNotifications:', error);
+      return [];
+    }
+  }
+
+  // Get unread count
+  static async getUnreadCount(userId) {
+    try {
+      const supabase = supabaseAdmin();
+      const { count, error } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('recipient_id', userId)
+        .eq('read', false);
+
+      if (error) {
+        console.error('Error getting unread count:', error);
+        return 0;
+      }
+
+      return count || 0;
+    } catch (error) {
+      console.error('Error in getUnreadCount:', error);
+      return 0;
+    }
+  }
+
+  // Mark as read
+  static async markAsRead(notificationId) {
+    try {
+      const supabase = supabaseAdmin();
+      const { error } = await supabase
+        .from('notifications')
+        .update({ 
+          read: true, 
+          read_at: new Date().toISOString() 
+        })
+        .eq('id', notificationId);
+
+      if (error) {
+        console.error('Error marking notification as read:', error);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error in markAsRead:', error);
+      return false;
+    }
   }
 }
 

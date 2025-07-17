@@ -13,13 +13,25 @@ class GoogleOAuthProvider extends OAuthProvider {
         this.clientSecret = process.env.GOOGLE_CLIENT_SECRET;
         this.redirectUri = process.env.GOOGLE_REDIRECT_URI || `${process.env.SERVER_URL || 'http://localhost:5000'}/api/integrations/google/callback`;
         
+        // Debug: Check what redirect URI is being used
+        console.log('🔧 GoogleOAuthProvider Redirect URI Debug:');
+        console.log('GOOGLE_REDIRECT_URI env var:', process.env.GOOGLE_REDIRECT_URI || 'undefined');
+        console.log('Final redirectUri:', this.redirectUri);
+        
         // Google OAuth scopes for calendar and meet access
         this.scopes = [
             'https://www.googleapis.com/auth/calendar',
             'https://www.googleapis.com/auth/calendar.events',
+            'https://www.googleapis.com/auth/calendar.readonly',
+            'https://www.googleapis.com/auth/calendar.calendars.readonly',
             'https://www.googleapis.com/auth/userinfo.email',
             'https://www.googleapis.com/auth/userinfo.profile'
         ];
+
+        if (!this.clientId || !this.clientSecret) {
+            console.error('❌ Missing Google OAuth credentials! Please check environment variables.');
+            throw new Error('Google OAuth credentials not found in environment variables');
+        }
 
         this.oauth2Client = new google.auth.OAuth2(
             this.clientId,

@@ -336,12 +336,12 @@ const ProviderSetupGuideDialog = ({ open, onClose, providerId, providerName }) =
         };
       case 'microsoft':
         return {
-          title: 'Microsoft Outlook & Teams Setup',
-          description: 'Connect your Microsoft account to sync Outlook calendars and enable Teams integration',
+          title: 'Microsoft Outlook Setup',
+          description: 'Connect your Microsoft account to sync Outlook calendars',
           steps: [
             {
               label: 'Authorize PharmaDOC',
-              content: 'Click "Connect Microsoft Outlook & Teams" to start the authorization process.',
+              content: 'Click "Connect Microsoft Outlook" to start the authorization process.',
             },
             {
               label: 'Sign in to Microsoft',
@@ -349,17 +349,17 @@ const ProviderSetupGuideDialog = ({ open, onClose, providerId, providerName }) =
             },
             {
               label: 'Grant Permissions',
-              content: 'Review and accept the permissions PharmaDOC needs to access your Outlook calendar and create Teams meetings.',
+              content: 'Review and accept the permissions PharmaDOC needs to access your Outlook calendar.',
             },
             {
               label: 'Complete Setup',
-              content: 'Your Outlook calendar will sync and you can create appointments with Microsoft Teams meeting links.',
+              content: 'Your Outlook calendar will sync with PharmaDOC for seamless appointment scheduling.',
             },
           ],
           permissions: [
             'Read and write your calendar events',
             'Create new calendar events',
-            'Generate Microsoft Teams meeting links',
+            // DISABLED: 'Generate Microsoft Teams meeting links', (requires admin consent for multi-tenant SaaS)
             'Access basic profile information',
           ],
           troubleshooting: [
@@ -408,20 +408,20 @@ const ProviderSetupGuideDialog = ({ open, onClose, providerId, providerName }) =
           description: 'Connect any CalDAV-compatible calendar service for cross-platform synchronization',
           steps: [
             {
-              label: 'Gather Credentials',
-              content: 'Collect your CalDAV server URL, username, and password from your calendar provider.',
+              label: 'Choose Your Provider',
+              content: 'Select your calendar provider: Apple iCloud (https://caldav.icloud.com), Yahoo Calendar, or other CalDAV server.',
             },
             {
-              label: 'Enter Server Details',
-              content: 'Provide your CalDAV server information in the connection form.',
+              label: 'Set Up Authentication',
+              content: 'For Apple iCloud: Generate an App-Specific Password at appleid.apple.com (required for security). For other providers: use your regular credentials.',
             },
             {
-              label: 'Test Connection',
-              content: 'PharmaDOC will test the connection to verify your credentials and server accessibility.',
+              label: 'Enter Connection Details',
+              content: 'Provide your server URL, Apple ID email, and App-Specific Password (for iCloud) or regular credentials (for other providers).',
             },
             {
-              label: 'Select Calendars',
-              content: 'Choose which calendars to sync with PharmaDOC from your CalDAV account.',
+              label: 'Test & Connect',
+              content: 'PharmaDOC will test the connection and discover your available calendars for synchronization.',
             },
           ],
           permissions: [
@@ -431,9 +431,10 @@ const ProviderSetupGuideDialog = ({ open, onClose, providerId, providerName }) =
             'Access calendar metadata',
           ],
           troubleshooting: [
-            { issue: 'Server not found', solution: 'Verify the CalDAV server URL with your provider' },
-            { issue: 'Authentication failed', solution: 'Check username and password, some providers require app-specific passwords' },
-            { issue: 'SSL certificate errors', solution: 'Ensure your CalDAV server supports secure connections' },
+            { issue: '🍎 Apple iCloud Users', solution: 'YOU MUST use an App-Specific Password (NOT your Apple ID password). Generate one at appleid.apple.com → App-Specific Passwords' },
+            { issue: 'Authentication failed', solution: 'For iCloud: Ensure you\'re using App-Specific Password. For others: verify username/password' },
+            { issue: 'Server not found', solution: 'For iCloud use: https://caldav.icloud.com. For others: verify the CalDAV server URL' },
+            { issue: 'SSL certificate errors', solution: 'Ensure your CalDAV server supports secure connections (HTTPS)' },
           ],
         };
       default:

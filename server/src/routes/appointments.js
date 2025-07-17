@@ -45,7 +45,7 @@ router.post(
   createAppointment
 );
 
-// Update appointment (doctors and pharma users)
+// Update appointment (doctors and pharma users) - PUT and PATCH both supported
 router.put(
   '/:id',
   authenticateSupabase,
@@ -55,7 +55,26 @@ router.put(
   updateAppointment
 );
 
-// Confirm appointment (doctors only)
+router.patch(
+  '/:id',
+  authenticateSupabase,
+  requireRole(['doctor', 'pharma']),
+  updateAppointmentValidator,
+  validateRequest,
+  updateAppointment
+);
+
+// Update appointment status (doctors and pharma users)
+router.patch(
+  '/:id/status',
+  authenticateSupabase,
+  requireRole(['doctor', 'pharma']),
+  idParamValidator,
+  validateRequest,
+  updateAppointment
+);
+
+// Confirm appointment (doctors only) - PUT and PATCH both supported
 router.put(
   '/:id/confirm',
   authenticateSupabase,
@@ -65,8 +84,26 @@ router.put(
   confirmAppointment
 );
 
-// Cancel appointment (doctors and pharma users)
+router.patch(
+  '/:id/confirm',
+  authenticateSupabase,
+  requireRole(['doctor']),
+  idParamValidator,
+  validateRequest,
+  confirmAppointment
+);
+
+// Cancel appointment (doctors and pharma users) - PUT and PATCH both supported
 router.put(
+  '/:id/cancel',
+  authenticateSupabase,
+  requireRole(['doctor', 'pharma']),
+  cancelAppointmentValidator,
+  validateRequest,
+  cancelAppointment
+);
+
+router.patch(
   '/:id/cancel',
   authenticateSupabase,
   requireRole(['doctor', 'pharma']),

@@ -9,6 +9,7 @@ import {
   Container,
 } from '@mui/material';
 import { CheckCircle as SuccessIcon, Error as ErrorIcon } from '@mui/icons-material';
+import api from '../../services/api';
 
 /**
  * OAuth Callback Handler
@@ -76,42 +77,92 @@ const OAuthCallback = () => {
           console.warn('Failed to parse state parameter:', e);
         }
 
-        setMessage('Exchanging authorization code for tokens...');
+        const providerId = stateData.providerId || 'unknown';
+        setMessage(`Exchanging authorization code for ${providerId} tokens...`);
 
-        // Here you would normally exchange the authorization code for access tokens
-        // For now, we'll simulate success
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Exchange authorization code for tokens based on provider
+        let tokenExchangeResult;
+        
+        try {
+          switch (providerId) {
+            case 'google':
+              tokenExchangeResult = await api.post('/integrations/google/token', {
+                code,
+                state
+              });
+              break;
+              
+            case 'microsoft':
+              tokenExchangeResult = await api.post('/integrations/microsoft/token', {
+                code,
+                state
+              });
+              break;
+              
+            case 'zoom':
+              tokenExchangeResult = await api.post('/integrations/zoom/token', {
+                code,
+                state
+              });
+              break;
+              
+            default:
+              throw new Error(`Unsupported provider: ${providerId}`);
+          }
 
-        setStatus('success');
-        setMessage('Authorization successful! You can close this window.');
+          const { data } = tokenExchangeResult;
+          
+          if (!data.success) {
+            throw new Error(data.error || 'Token exchange failed');
+          }
 
-        // Send success message to parent window
-        if (window.opener) {
-          window.opener.postMessage({
-            type: 'oauth-success',
-            provider: stateData.providerId || 'unknown',
-            credentials: {
-              code,
-              state,
-              // In a real implementation, you'd include the access token here
-            },
-            user: {
-              // User information would be populated after token exchange
-              id: 'user-id',
-              email: 'user@example.com',
-              name: 'User Name'
-            }
-          }, window.location.origin);
+          setStatus('success');
+          setMessage('Authorization successful! You can close this window.');
 
-          // Close the popup after a short delay
-          setTimeout(() => {
-            window.close();
-          }, 2000);
-        } else {
-          // If not in a popup, redirect back to integrations
-          setTimeout(() => {
-            navigate('/integrations');
-          }, 3000);
+          // Send success message to parent window
+          if (window.opener) {
+            window.opener.postMessage({
+              type: 'oauth-success',
+              provider: providerId,
+              integration: data.integration,
+              user: data.integration.user
+            }, window.location.origin);
+
+            // Close the popup after a short delay
+            setTimeout(() => {
+              window.close();
+            }, 2000);
+          } else {
+            // If not in a popup, redirect back to integrations
+            setTimeout(() => {
+              navigate('/integrations');
+            }, 3000);
+          }
+
+        } catch (tokenError) {
+          console.error(`${providerId} token exchange error:`, tokenError);
+          
+          // Extract meaningful error message
+          let errorMessage = 'Failed to connect account';
+          if (tokenError.response?.data?.details) {
+            errorMessage = tokenError.response.data.details;
+          } else if (tokenError.response?.data?.error) {
+            errorMessage = tokenError.response.data.error;
+          } else if (tokenError.message) {
+            errorMessage = tokenError.message;
+          }
+
+          setStatus('error');
+          setError(errorMessage);
+          setMessage('Failed to connect account');
+
+          if (window.opener) {
+            window.opener.postMessage({
+              type: 'oauth-error',
+              error: errorMessage,
+              provider: providerId
+            }, window.location.origin);
+          }
         }
 
       } catch (err) {

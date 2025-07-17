@@ -49,6 +49,17 @@ const IntegrationCard = ({
   onRefresh,
   loading = false,
 }) => {
+  // Debug logging
+  console.log(`🔍 [DEBUG] IntegrationCard for ${providerId}:`, {
+    providerId,
+    providerName,
+    status,
+    lastSync,
+    user,
+    scopes,
+    loading
+  });
+
   const getStatusInfo = () => {
     switch (status) {
       case 'connected':
@@ -62,6 +73,12 @@ const IntegrationCard = ({
           color: 'error',
           icon: <ErrorIcon color="error" />,
           text: 'Connection Error',
+        };
+      case 'sync_failed':
+        return {
+          color: 'warning',
+          icon: <WarningIcon color="warning" />,
+          text: 'Sync Failed',
         };
       case 'warning':
         return {

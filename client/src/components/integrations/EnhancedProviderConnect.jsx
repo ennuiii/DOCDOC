@@ -94,18 +94,18 @@ const SmartSetupGuideDialog = ({ open, onClose, providerId, providerName }) => {
         };
       case 'microsoft':
         return {
-          title: 'Microsoft Outlook & Teams Setup',
-          description: 'Connect your Microsoft account with enhanced Teams integration and smart scheduling',
+          title: 'Microsoft Outlook Setup',
+          description: 'Connect your Microsoft account for intelligent Outlook calendar scheduling',
           smartFeatures: [
-            'Intelligent Teams meeting creation',
             'Smart conflict resolution for Outlook events',
             'Advanced calendar analytics',
             'Preference learning for better scheduling',
+            'Intelligent appointment optimization',
           ],
           steps: [
             {
               label: 'Authorize PharmaDOC',
-              content: 'Click "Connect Microsoft Outlook & Teams" to start the enhanced authorization.',
+              content: 'Click "Connect Microsoft Outlook" to start the authorization.',
               tips: ['Works with personal and business accounts', 'Enhanced security protocols'],
             },
             {
@@ -114,26 +114,26 @@ const SmartSetupGuideDialog = ({ open, onClose, providerId, providerName }) => {
               tips: ['Business accounts may require admin approval', 'Multi-factor auth is supported'],
             },
             {
-              label: 'Grant Enhanced Permissions',
-              content: 'Accept permissions for smart scheduling and Teams integration.',
-              tips: ['Enhanced permissions enable AI features', 'Data processing is GDPR compliant'],
+              label: 'Grant Calendar Permissions',
+              content: 'Accept permissions for smart calendar scheduling and management.',
+              tips: ['Calendar permissions enable AI features', 'Data processing is GDPR compliant'],
             },
             {
-              label: 'Complete Enhanced Setup',
-              content: 'Your Outlook calendar gains smart conflict detection and intelligent Teams meeting creation.',
-              tips: ['Teams integration requires Teams license', 'Smart features work with all calendar types'],
+              label: 'Complete Calendar Setup',
+              content: 'Your Outlook calendar gains smart conflict detection and intelligent scheduling.',
+              tips: ['Smart features work with all calendar types', 'Automatic sync keeps data current'],
             },
           ],
           permissions: [
             'Read and write your calendar events',
             'Create smart calendar events with AI assistance',
-            'Generate Microsoft Teams meeting links',
             'Analyze calendar patterns for optimization',
             'Access location data for travel calculations',
+            'Manage appointment scheduling preferences',
           ],
           troubleshooting: [
-            { issue: 'Organization restrictions', solution: 'Contact your IT administrator for enhanced permissions' },
-            { issue: 'Teams not available', solution: 'Ensure you have a Teams license for meeting creation' },
+            { issue: 'Organization restrictions', solution: 'Contact your IT administrator for calendar permissions' },
+            { issue: 'Sync delays', solution: 'Large calendars may take longer to process initially' },
             { issue: 'Smart features limited', solution: 'Some features require Office 365 Business or Enterprise' },
           ],
         };

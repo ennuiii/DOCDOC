@@ -38,7 +38,10 @@ import {
 
 import IntegrationCard from './IntegrationCard';
 import ProviderConnectButton from './ProviderConnectButton';
+import GoogleOAuthButton from './GoogleOAuthButton';
+import MicrosoftOAuthButton from './MicrosoftOAuthButton';
 import IntegrationStatus from './IntegrationStatus';
+import CalDAVConnectionModal from './CalDAVConnectionModal';
 
 /**
  * Smart Analytics Panel - Shows intelligent insights about conflicts and scheduling
@@ -212,48 +215,82 @@ const IntegrationDashboard = ({
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [selectedTab, setSelectedTab] = useState(0);
   const [syncingAll, setSyncingAll] = useState(false);
+  const [calDAVModalOpen, setCalDAVModalOpen] = useState(false);
+
+  // Listen for OAuth success messages and refresh integrations
+  useEffect(() => {
+    const handleOAuthMessage = (event) => {
+      // Only handle messages from our own origin for security
+      if (event.origin !== window.location.origin) return;
+
+      if (event.data.type === 'oauth-success') {
+        console.log('OAuth success received:', event.data);
+        
+        // Call the onConnect handler to refresh integrations
+        if (onConnect) {
+          onConnect(event.data);
+        }
+      }
+    };
+
+    // Add message listener
+    window.addEventListener('message', handleOAuthMessage);
+
+    // Cleanup listener on unmount
+    return () => {
+      window.removeEventListener('message', handleOAuthMessage);
+    };
+  }, [onConnect]);
 
   // Available providers that can be connected
   const availableProviders = [
     {
       id: 'google',
       name: 'Google Calendar & Meet',
-      description: 'Connect your Google Calendar and enable Google Meet for video calls',
-      category: 'calendar',
-      scopes: ['https://www.googleapis.com/auth/calendar'],
+      description: 'Connect Google Calendar and enable Meet for video calls',
+      categories: ['calendar', 'video'], // Both calendar AND video (Meet)
+      scopes: ['https://www.googleapis.com/auth/calendar', 'https://www.googleapis.com/auth/calendar.events'],
     },
+    // Microsoft provider enabled for Outlook calendar only (Teams removed for multi-tenant SaaS)
     {
       id: 'microsoft',
-      name: 'Microsoft Outlook & Teams',
-      description: 'Connect Microsoft Outlook and enable Teams for video calls',
-      category: 'calendar',
+      name: 'Microsoft Outlook',
+      description: 'Connect Microsoft Outlook calendar for appointment scheduling',
+      categories: ['calendar'], // Calendar only - Teams removed
       scopes: ['https://graph.microsoft.com/calendars.readwrite'],
     },
     {
       id: 'zoom',
       name: 'Zoom Meetings',
       description: 'Enable Zoom for video conferences and webinars',
-      category: 'video',
+      categories: ['video'], // Video only
       scopes: ['meeting:write', 'meeting:read'],
     },
     {
       id: 'caldav',
       name: 'CalDAV (iCloud, Yahoo, etc.)',
-      description: 'Connect to any CalDAV-compatible calendar service',
-      category: 'calendar',
+      description: 'Connect Apple iCloud, Yahoo, or other CalDAV calendars. Note: Apple users need App-Specific Password.',
+      categories: ['calendar'], // Calendar only
       scopes: ['calendar:read', 'calendar:write'],
     },
   ];
 
   const getUnconnectedProviders = () => {
-    const connectedIds = integrations.map(i => i.providerId);
-    return availableProviders.filter(p => !connectedIds.includes(p.id));
+    // Allow multiple integrations from the same provider (e.g., multiple Google accounts)
+    // Always return all available providers since users should be able to add multiple accounts
+    return availableProviders;
   };
 
   const getProvidersByCategory = (category) => {
     return integrations.filter(i => {
       const provider = availableProviders.find(p => p.id === i.providerId);
-      return provider && provider.category === category;
+      if (!provider) return false;
+      
+      // Support both old 'category' field and new 'categories' array
+      if (provider.categories) {
+        return provider.categories.includes(category);
+      }
+      return provider.category === category; // Backward compatibility
     });
   };
 
@@ -267,6 +304,22 @@ const IntegrationDashboard = ({
 
   const handleConnectProvider = (result) => {
     handleCloseAddDialog();
+    if (onConnect) {
+      onConnect(result);
+    }
+  };
+
+  const handleOpenCalDAVModal = () => {
+    setAddDialogOpen(false);
+    setCalDAVModalOpen(true);
+  };
+
+  const handleCloseCalDAVModal = () => {
+    setCalDAVModalOpen(false);
+  };
+
+  const handleCalDAVSuccess = (result) => {
+    setCalDAVModalOpen(false);
     if (onConnect) {
       onConnect(result);
     }
@@ -459,7 +512,7 @@ const IntegrationDashboard = ({
       </Grid>
 
       {/* Floating Action Button */}
-      {integrations.length > 0 && unconnectedProviders.length > 0 && (
+      {integrations.length > 0 && (
         <Fab
           color="primary"
           aria-label="add integration"
@@ -486,7 +539,7 @@ const IntegrationDashboard = ({
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Choose a provider to connect with your PharmaDOC account
+            Choose a provider to connect with your PharmaDOC account. You can add multiple accounts from the same provider (e.g., work and personal Google accounts).
           </Typography>
           
           <Grid container spacing={2}>
@@ -499,14 +552,41 @@ const IntegrationDashboard = ({
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                     {provider.description}
                   </Typography>
-                  <ProviderConnectButton
-                    providerId={provider.id}
-                    providerName={provider.name}
-                    scopes={provider.scopes}
-                    onSuccess={handleConnectProvider}
-                    onError={(error) => console.error('Connection failed:', error)}
-                    fullWidth
-                  />
+                  {provider.id === 'google' ? (
+                    <GoogleOAuthButton
+                      onSuccess={handleConnectProvider}
+                      onError={(error) => console.error('Google connection failed:', error)}
+                      fullWidth
+                    />
+                  ) : provider.id === 'microsoft' ? (
+                    <MicrosoftOAuthButton
+                      onSuccess={handleConnectProvider}
+                      onError={(error) => console.error('Microsoft connection failed:', error)}
+                      fullWidth
+                    />
+                  ) : provider.id === 'caldav' ? (
+                    <Button
+                      variant="contained"
+                      startIcon={<SettingsIcon />}
+                      onClick={handleOpenCalDAVModal}
+                      fullWidth
+                      sx={{ 
+                        backgroundColor: '#34495e',
+                        '&:hover': { backgroundColor: '#2c3e50' }
+                      }}
+                    >
+                      Connect CalDAV Calendar
+                    </Button>
+                  ) : (
+                    <ProviderConnectButton
+                      providerId={provider.id}
+                      providerName={provider.name}
+                      scopes={provider.scopes}
+                      onSuccess={handleConnectProvider}
+                      onError={(error) => console.error('Connection failed:', error)}
+                      fullWidth
+                    />
+                  )}
                 </Paper>
                 {unconnectedProviders.indexOf(provider) < unconnectedProviders.length - 1 && (
                   <Divider sx={{ my: 2 }} />
@@ -515,13 +595,7 @@ const IntegrationDashboard = ({
             ))}
           </Grid>
 
-          {unconnectedProviders.length === 0 && (
-            <Box sx={{ textAlign: 'center', py: 3 }}>
-              <Typography variant="body2" color="text.secondary">
-                All available providers are already connected
-              </Typography>
-            </Box>
-          )}
+          {/* Note: We always show all providers since users can add multiple accounts */}
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseAddDialog}>
@@ -529,6 +603,14 @@ const IntegrationDashboard = ({
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* CalDAV Connection Modal */}
+      <CalDAVConnectionModal
+        open={calDAVModalOpen}
+        onClose={handleCloseCalDAVModal}
+        onSuccess={handleCalDAVSuccess}
+        onError={(error) => console.error('CalDAV connection failed:', error)}
+      />
     </Container>
   );
 };

@@ -3,9 +3,9 @@
  * Implements smart scheduling with configurable buffer times between appointments
  */
 
-const { createClient } = require('@supabase/supabase-js');
-const AuditLogger = require('./AuditLogger');
-const TimezoneService = require('./TimezoneService');
+import { createClient } from '@supabase/supabase-js';
+import AuditLogger from './AuditLogger.js';
+import TimezoneService from './TimezoneService.js';
 
 class BufferTimeService {
     constructor() {
@@ -745,4 +745,4 @@ class BufferTimeService {
     }
 }
 
-module.exports = BufferTimeService; 
+export default BufferTimeService; 

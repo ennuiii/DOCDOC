@@ -7,8 +7,8 @@ import axios from 'axios';
 import { XMLParser, XMLBuilder } from 'fast-xml-parser';
 import ical from 'ical';
 import crypto from 'crypto';
-import logger from '../../../../utils/logger.js';
-import { TimezoneService } from '../../services/TimezoneService.js';
+import AuditLogger from '../../services/AuditLogger.js';
+import TimezoneService from '../../services/TimezoneService.js';
 
 class CalDAVClient {
   constructor(config = {}) {
@@ -37,6 +37,7 @@ class CalDAVClient {
 
     this.timezoneService = new TimezoneService();
     this.authCache = new Map();
+    this.auditLogger = new AuditLogger('CalDAVClient');
   }
 
   /**
@@ -44,7 +45,7 @@ class CalDAVClient {
    */
   async detectProvider(serverUrl, username) {
     try {
-      logger.info('Detecting CalDAV provider', { serverUrl, username });
+      this.auditLogger.log('info', 'Detecting CalDAV provider', { serverUrl, username });
 
       // Apple iCloud detection
       if (serverUrl.includes('icloud.com') || serverUrl.includes('me.com')) {
@@ -65,7 +66,7 @@ class CalDAVClient {
       return this.configureGenericCalDAV(serverUrl, username);
 
     } catch (error) {
-      logger.error('CalDAV provider detection failed', error);
+      this.auditLogger.log('error', 'CalDAV provider detection failed', { error: error.message });
       throw new Error(`Failed to detect CalDAV provider: ${error.message}`);
     }
   }
@@ -148,7 +149,7 @@ class CalDAVClient {
       };
 
     } catch (error) {
-      logger.error('Generic CalDAV configuration failed', error);
+      this.auditLogger.log('error', 'Generic CalDAV configuration failed', { error: error.message });
       throw new Error(`Failed to configure generic CalDAV: ${error.message}`);
     }
   }
@@ -179,7 +180,7 @@ class CalDAVClient {
       return `${serverUrl}/principals/${username}/`;
 
     } catch (error) {
-      logger.warn('Principal discovery failed, using fallback', error);
+      this.auditLogger.log('warn', 'Principal discovery failed, using fallback', { error: error.message });
       return `${serverUrl}/principals/${username}/`;
     }
   }
@@ -209,7 +210,7 @@ class CalDAVClient {
       return `${serverUrl}/calendars/${username}/`;
 
     } catch (error) {
-      logger.warn('Calendar home discovery failed, using fallback', error);
+      this.auditLogger.log('warn', 'Calendar home discovery failed, using fallback', { error: error.message });
       const serverUrl = principalUrl.split('/principals/')[0];
       return `${serverUrl}/calendars/${username}/`;
     }
@@ -220,7 +221,7 @@ class CalDAVClient {
    */
   async authenticate(config, password) {
     try {
-      logger.info('Authenticating with CalDAV server', { 
+      this.auditLogger.log('info', 'Authenticating with CalDAV server', { 
         provider: config.provider, 
         username: config.username 
       });
@@ -247,14 +248,14 @@ class CalDAVClient {
           expiresAt: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
         });
 
-        logger.info('CalDAV authentication successful', { provider: config.provider });
+        this.auditLogger.log('info', 'CalDAV authentication successful', { provider: config.provider });
         return true;
       }
 
       throw new Error('Authentication failed');
 
     } catch (error) {
-      logger.error('CalDAV authentication failed', error);
+      this.auditLogger.log('error', 'CalDAV authentication failed', { error: error.message });
       throw new Error(`Authentication failed: ${error.message}`);
     }
   }
@@ -269,7 +270,7 @@ class CalDAVClient {
         throw new Error('Authentication required');
       }
 
-      logger.info('Discovering CalDAV calendars', { provider: config.provider });
+      this.auditLogger.log('info', 'Discovering CalDAV calendars', { provider: config.provider });
 
       const response = await this.makeRequest('PROPFIND', config.calendarHomeUrl, {
         auth,
@@ -289,11 +290,11 @@ class CalDAVClient {
       const parsed = this.xmlParser.parse(response.data);
       const calendars = this.parseCalendarList(parsed, config);
 
-      logger.info(`Found ${calendars.length} calendars`, { provider: config.provider });
+      this.auditLogger.log('info', `Found ${calendars.length} calendars`, { provider: config.provider });
       return calendars;
 
     } catch (error) {
-      logger.error('Calendar discovery failed', error);
+      this.auditLogger.log('error', 'Calendar discovery failed', { error: error.message });
       throw new Error(`Failed to discover calendars: ${error.message}`);
     }
   }
@@ -308,7 +309,7 @@ class CalDAVClient {
         throw new Error('Authentication required');
       }
 
-      logger.info('Syncing calendar events', {
+      this.auditLogger.log('info', 'Syncing calendar events', {
         provider: config.provider,
         calendar: calendar.name,
         lastSyncToken
@@ -327,7 +328,7 @@ class CalDAVClient {
       // Process and normalize events
       const normalizedEvents = events.map(event => this.normalizeEvent(event, config));
 
-      logger.info(`Synced ${normalizedEvents.length} events`, {
+      this.auditLogger.log('info', `Synced ${normalizedEvents.length} events`, {
         provider: config.provider,
         calendar: calendar.name
       });
@@ -339,7 +340,7 @@ class CalDAVClient {
       };
 
     } catch (error) {
-      logger.error('Calendar sync failed', error);
+      this.auditLogger.log('error', 'Calendar sync failed', { error: error.message });
       throw new Error(`Failed to sync calendar: ${error.message}`);
     }
   }
@@ -370,7 +371,7 @@ class CalDAVClient {
       });
 
       if (response.status === 201 || response.status === 204) {
-        logger.info('Event created successfully', {
+        this.auditLogger.log('info', 'Event created successfully', {
           provider: config.provider,
           calendar: calendar.name,
           eventUid
@@ -386,7 +387,7 @@ class CalDAVClient {
       throw new Error(`Failed to create event: ${response.status}`);
 
     } catch (error) {
-      logger.error('Event creation failed', error);
+      this.auditLogger.log('error', 'Event creation failed', { error: error.message });
       throw new Error(`Failed to create event: ${error.message}`);
     }
   }
@@ -422,7 +423,7 @@ class CalDAVClient {
       });
 
       if (response.status === 204 || response.status === 200) {
-        logger.info('Event updated successfully', {
+        this.auditLogger.log('info', 'Event updated successfully', {
           provider: config.provider,
           calendar: calendar.name,
           eventUid
@@ -438,7 +439,7 @@ class CalDAVClient {
       throw new Error(`Failed to update event: ${response.status}`);
 
     } catch (error) {
-      logger.error('Event update failed', error);
+      this.auditLogger.log('error', 'Event update failed', { error: error.message });
       throw new Error(`Failed to update event: ${error.message}`);
     }
   }
@@ -466,7 +467,7 @@ class CalDAVClient {
       });
 
       if (response.status === 204 || response.status === 200) {
-        logger.info('Event deleted successfully', {
+        this.auditLogger.log('info', 'Event deleted successfully', {
           provider: config.provider,
           calendar: calendar.name,
           eventUid
@@ -478,7 +479,7 @@ class CalDAVClient {
       throw new Error(`Failed to delete event: ${response.status}`);
 
     } catch (error) {
-      logger.error('Event deletion failed', error);
+      this.auditLogger.log('error', 'Event deletion failed', { error: error.message });
       throw new Error(`Failed to delete event: ${error.message}`);
     }
   }
@@ -584,7 +585,7 @@ class CalDAVClient {
       };
 
     } catch (error) {
-      logger.error('Event normalization failed', error);
+      this.auditLogger.log('error', 'Event normalization failed', { error: error.message });
       throw new Error(`Failed to normalize event: ${error.message}`);
     }
   }

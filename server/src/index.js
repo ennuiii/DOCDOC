@@ -16,7 +16,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
-import mongoose from 'mongoose';
 
 // Import routes
 import authRoutes from './routes/auth.js';
@@ -34,34 +33,12 @@ import { notFound } from './middleware/notFound.js';
 // Create Express app
 const app = express();
 
-// Database connection with error handling
-const connectDB = async () => {
-  try {
-    if (process.env.MONGODB_URI) {
-      await mongoose.connect(process.env.MONGODB_URI, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-      });
-      console.log('MongoDB connected successfully');
-    } else {
-      console.log('⚠️  No MongoDB URI provided - running in mock data mode');
-      console.log('📝 Test credentials:');
-      console.log('   - Doctor: doctor@test.com / doctor123');
-      console.log('   - Pharma: pharma@test.com / pharma123');
-      console.log('   - Admin: admin@test.com / admin123');
-    }
-  } catch (err) {
-    console.error('MongoDB connection error:', err);
-    console.log('⚠️  Failed to connect to MongoDB - running in mock data mode');
-    console.log('📝 Test credentials:');
-    console.log('   - Doctor: doctor@test.com / doctor123');
-    console.log('   - Pharma: pharma@test.com / pharma123');
-    console.log('   - Admin: admin@test.com / admin123');
-  }
-};
-
-// Connect to database
-connectDB();
+// Database connection status log
+console.log('📄 Using Supabase as primary database');
+console.log('📝 Test credentials:');
+console.log('   - Doctor: doctor@test.com / doctor123');
+console.log('   - Pharma: pharma@test.com / pharma123');
+console.log('   - Admin: admin@test.com / admin123');
 
 // Middleware
 app.use(helmet());

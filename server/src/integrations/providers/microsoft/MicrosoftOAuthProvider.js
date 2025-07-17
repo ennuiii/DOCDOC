@@ -1,13 +1,14 @@
 /**
  * Microsoft OAuth Provider
  * Handles Microsoft Graph and Teams OAuth authentication
+ * Enhanced for multi-tenant support with OnlineMeetings permissions
  */
 
 import { OAuthProvider } from '../../types/OAuthProvider.js';
 import AuditLogger from '../../services/AuditLogger.js';
 import RateLimitManager from '../../services/RateLimitManager.js';
 
-export class MicrosoftOAuthProvider extends OAuthProvider {
+class MicrosoftOAuthProvider extends OAuthProvider {
     constructor() {
         super();
         this.providerId = 'microsoft';
@@ -26,21 +27,27 @@ export class MicrosoftOAuthProvider extends OAuthProvider {
         this.auditLogger = new AuditLogger('MicrosoftOAuth');
         
         // Required scopes for calendar and Teams integration
+        // Using simplified scope format for delegated permissions
         this.scopes = [
             'openid',
             'profile',
             'email',
             'offline_access',
-            'https://graph.microsoft.com/User.Read',
-            'https://graph.microsoft.com/Calendars.ReadWrite',
-            'https://graph.microsoft.com/Calendars.Read.Shared',
-            'https://graph.microsoft.com/OnlineMeetings.ReadWrite',
-            'https://graph.microsoft.com/OnlineMeetings.Read'
+            'User.Read',
+            'Calendars.ReadWrite',
+            'Calendars.Read.Shared',
+            'OnlineMeetings.ReadWrite',
+            'OnlineMeetings.Read'
         ];
+
+        // Cache for user tenant information
+        this.tenantCache = new Map();
+        this.cacheExpiry = 3600000; // 1 hour
     }
 
     /**
      * Generate authorization URL for Microsoft OAuth flow
+     * Enhanced for multi-tenant support
      * @param {string} state - CSRF protection state parameter
      * @param {string} redirectUri - Callback URL
      * @param {Object} options - Additional options
@@ -49,10 +56,11 @@ export class MicrosoftOAuthProvider extends OAuthProvider {
     getAuthorizationUrl(state, redirectUri, options = {}) {
         try {
             const {
-                tenant = 'common', // 'common', 'organizations', 'consumers', or specific tenant ID
-                prompt = 'select_account',
+                tenant = 'common', // 'common' for multi-tenant
+                prompt = 'consent', // Force consent for multi-tenant apps
                 responseMode = 'query',
-                additionalScopes = []
+                additionalScopes = [],
+                domain_hint = null // For better user experience
             } = options;
 
             const allScopes = [...this.scopes, ...additionalScopes];
@@ -67,11 +75,18 @@ export class MicrosoftOAuthProvider extends OAuthProvider {
                 prompt: prompt
             });
 
+            // Add domain hint if provided for better UX
+            if (domain_hint) {
+                params.append('domain_hint', domain_hint);
+            }
+
             const authUrl = `${this.baseUrl}/${tenant}/oauth2/v2.0/authorize?${params.toString()}`;
             
-            this.auditLogger.log('info', 'Authorization URL generated', {
+            this.auditLogger.log('info', 'Authorization URL generated for multi-tenant app', {
                 tenant,
                 scopes: allScopes.length,
+                prompt,
+                domain_hint,
                 state: state.substring(0, 8) + '...'
             });
 
@@ -91,7 +106,7 @@ export class MicrosoftOAuthProvider extends OAuthProvider {
      */
     async exchangeCodeForToken(code, redirectUri, options = {}) {
         try {
-            await this.rateLimiter.checkLimit('token_exchange');
+            await this.rateLimiter.checkRateLimit('microsoft', null, 'token_exchange');
             
             const { tenant = 'common' } = options;
             
@@ -159,7 +174,7 @@ export class MicrosoftOAuthProvider extends OAuthProvider {
      */
     async refreshAccessToken(refreshToken, options = {}) {
         try {
-            await this.rateLimiter.checkLimit('token_refresh');
+            await this.rateLimiter.checkRateLimit('microsoft', null, 'token_refresh');
             
             const { tenant = 'common' } = options;
             
@@ -247,7 +262,7 @@ export class MicrosoftOAuthProvider extends OAuthProvider {
      */
     async getUserProfile(accessToken) {
         try {
-            await this.rateLimiter.checkLimit('api_request');
+            await this.rateLimiter.checkRateLimit('microsoft', null, 'api_request');
             
             const response = await fetch(`${this.graphUrl}/me`, {
                 headers: {
@@ -295,7 +310,7 @@ export class MicrosoftOAuthProvider extends OAuthProvider {
      */
     async getUserPhoto(accessToken, size = '96x96') {
         try {
-            await this.rateLimiter.checkLimit('api_request');
+            await this.rateLimiter.checkRateLimit('microsoft', null, 'api_request');
             
             const response = await fetch(`${this.graphUrl}/me/photos/${size}/$value`, {
                 headers: {
@@ -332,7 +347,7 @@ export class MicrosoftOAuthProvider extends OAuthProvider {
      */
     async validateToken(accessToken) {
         try {
-            await this.rateLimiter.checkLimit('token_validation');
+            await this.rateLimiter.checkRateLimit('microsoft', null, 'token_validation');
             
             const response = await fetch(`${this.graphUrl}/me`, {
                 headers: {
@@ -384,25 +399,55 @@ export class MicrosoftOAuthProvider extends OAuthProvider {
     }
 
     /**
-     * Handle API errors
+     * Handle API errors with enhanced multi-tenant support
      * @param {Response} response - Fetch response
      * @param {string} operation - Operation name
      */
     async handleApiError(response, operation) {
         const errorData = await response.json().catch(() => ({}));
         
-        const error = new Error(
-            `Microsoft Graph API error in ${operation}: ${response.status} ${response.statusText}`
-        );
+        let errorMessage = `Microsoft Graph API error in ${operation}: ${response.status} ${response.statusText}`;
+        let suggestions = [];
+
+        // Enhanced error handling for multi-tenant scenarios
+        if (operation.includes('OnlineMeetings') || operation.includes('Teams')) {
+            if (response.status === 403) {
+                errorMessage = `OnlineMeetings permission denied in ${operation}. This is likely a multi-tenant consent issue.`;
+                suggestions = [
+                    'The OnlineMeetings.ReadWrite permission requires admin consent in the user\'s tenant',
+                    'Ask the tenant administrator to grant consent for OnlineMeetings permissions',
+                    'Alternatively, configure your Azure app as single-tenant if all users are from your organization'
+                ];
+            } else if (response.status === 401) {
+                errorMessage = `Authentication failed in ${operation}. Token may not include required scopes.`;
+                suggestions = [
+                    'Ensure the access token includes OnlineMeetings.ReadWrite scope',
+                    'Reconnect the Microsoft integration to refresh permissions',
+                    'Verify that admin consent has been granted for OnlineMeetings permissions'
+                ];
+            } else if (response.status === 400 && errorData.error?.code === 'Forbidden') {
+                errorMessage = `OnlineMeetings API access forbidden. Multi-tenant app may need additional configuration.`;
+                suggestions = [
+                    'Check if your Azure app registration is properly configured for multi-tenant access',
+                    'Verify that OnlineMeetings.ReadWrite is configured as a delegated permission (not application permission)',
+                    'Ensure admin consent has been provided in the target tenant'
+                ];
+            }
+        }
         
+        const error = new Error(errorMessage);
         error.status = response.status;
         error.statusText = response.statusText;
         error.errorData = errorData;
+        error.suggestions = suggestions;
+        error.isMultiTenantIssue = suggestions.length > 0;
 
-        this.auditLogger.log('error', 'API error', {
+        this.auditLogger.log('error', 'API error with multi-tenant analysis', {
             operation,
             status: response.status,
-            error: errorData
+            error: errorData,
+            suggestions,
+            isMultiTenantIssue: error.isMultiTenantIssue
         });
 
         throw error;
@@ -440,6 +485,172 @@ export class MicrosoftOAuthProvider extends OAuthProvider {
         });
 
         return Array.from(requiredScopes);
+    }
+
+    /**
+     * Get user's tenant information
+     * Essential for multi-tenant OnlineMeetings permission handling
+     * @param {string} accessToken - Valid access token
+     * @returns {Object} Tenant information
+     */
+    async getUserTenantInfo(accessToken) {
+        try {
+            // Check cache first
+            const cacheKey = `tenant_${accessToken.substring(0, 20)}`;
+            const cached = this.tenantCache.get(cacheKey);
+            if (cached && (Date.now() - cached.timestamp) < this.cacheExpiry) {
+                return cached.data;
+            }
+
+            await this.rateLimiter.checkRateLimit('microsoft', null, 'api_request');
+            
+            const response = await fetch(`${this.graphUrl}/organization`, {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                // Fallback: extract tenant from token claims if possible
+                return await this.extractTenantFromToken(accessToken);
+            }
+
+            const orgData = await response.json();
+            const tenantInfo = {
+                tenantId: orgData.value[0]?.id,
+                tenantDisplayName: orgData.value[0]?.displayName,
+                verifiedDomains: orgData.value[0]?.verifiedDomains || []
+            };
+
+            // Cache the result
+            this.tenantCache.set(cacheKey, {
+                data: tenantInfo,
+                timestamp: Date.now()
+            });
+
+            this.auditLogger.log('info', 'Tenant information retrieved', {
+                tenantId: tenantInfo.tenantId,
+                tenantName: tenantInfo.tenantDisplayName
+            });
+
+            return tenantInfo;
+        } catch (error) {
+            this.auditLogger.log('warn', 'Failed to get tenant info, using fallback', { 
+                error: error.message 
+            });
+            return await this.extractTenantFromToken(accessToken);
+        }
+    }
+
+    /**
+     * Extract tenant ID from JWT token as fallback
+     * @param {string} accessToken - JWT access token
+     * @returns {Object} Basic tenant info
+     */
+    async extractTenantFromToken(accessToken) {
+        try {
+            // Decode JWT token (basic decode, not verification)
+            const payload = JSON.parse(
+                Buffer.from(accessToken.split('.')[1], 'base64').toString()
+            );
+
+            return {
+                tenantId: payload.tid || 'unknown',
+                tenantDisplayName: payload.tenant_name || 'Unknown Tenant',
+                verifiedDomains: []
+            };
+        } catch (error) {
+            this.auditLogger.log('warn', 'Failed to extract tenant from token', { 
+                error: error.message 
+            });
+            return {
+                tenantId: 'unknown',
+                tenantDisplayName: 'Unknown Tenant',
+                verifiedDomains: []
+            };
+        }
+    }
+
+    /**
+     * Validate OnlineMeetings permissions for multi-tenant scenario
+     * @param {string} accessToken - Access token to validate
+     * @returns {Object} Validation result with recommendations
+     */
+    async validateOnlineMeetingsPermissions(accessToken) {
+        try {
+            this.auditLogger.log('info', 'Validating OnlineMeetings permissions for multi-tenant app');
+
+            // Get tenant information
+            const tenantInfo = await this.getUserTenantInfo(accessToken);
+
+            // Test basic Graph API access
+            const userResponse = await fetch(`${this.graphUrl}/me`, {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (!userResponse.ok) {
+                throw new Error('Basic Graph API access failed');
+            }
+
+            // Test OnlineMeetings specific endpoint
+            const meetingsTestResponse = await fetch(`${this.graphUrl}/me/onlineMeetings?$top=1`, {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            const result = {
+                tenantInfo,
+                basicAccess: userResponse.ok,
+                onlineMeetingsAccess: meetingsTestResponse.ok,
+                status: meetingsTestResponse.status,
+                canCreateMeetings: false,
+                recommendations: []
+            };
+
+            if (meetingsTestResponse.ok) {
+                result.canCreateMeetings = true;
+                this.auditLogger.log('info', 'OnlineMeetings permissions validated successfully');
+            } else {
+                const errorData = await meetingsTestResponse.json().catch(() => ({}));
+                result.error = errorData;
+
+                // Provide specific recommendations based on error
+                if (meetingsTestResponse.status === 403) {
+                    result.recommendations.push(
+                        'OnlineMeetings.ReadWrite permission requires admin consent in the target tenant'
+                    );
+                    result.recommendations.push(
+                        'Ask the tenant administrator to grant consent for OnlineMeetings permissions'
+                    );
+                } else if (meetingsTestResponse.status === 401) {
+                    result.recommendations.push(
+                        'Authentication issue - token may not include OnlineMeetings scope'
+                    );
+                    result.recommendations.push(
+                        'Reconnect the Microsoft integration to ensure proper scope consent'
+                    );
+                }
+
+                this.auditLogger.log('warn', 'OnlineMeetings permissions validation failed', {
+                    status: meetingsTestResponse.status,
+                    error: errorData,
+                    tenantId: tenantInfo.tenantId
+                });
+            }
+
+            return result;
+        } catch (error) {
+            this.auditLogger.log('error', 'OnlineMeetings permission validation error', { 
+                error: error.message 
+            });
+            throw error;
+        }
     }
 }
 

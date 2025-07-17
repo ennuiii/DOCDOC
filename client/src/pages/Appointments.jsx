@@ -44,6 +44,7 @@ import {
   Videocam as ZoomIcon,
   Security as SecurityIcon,
   Lock as LockIcon,
+  ContentCopy as ContentCopyIcon,
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers';
 import dayjs from 'dayjs';
@@ -51,6 +52,7 @@ import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { useSnackbar } from 'notistack';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
+import { appointmentAPI } from '../services/api';
 
 const Appointments = () => {
   const { user } = useAuth();
@@ -76,7 +78,7 @@ const Appointments = () => {
     products: [],
     notes: '',
     meetingType: 'in-person',
-    videoProvider: 'google-meet', // Default video provider
+    videoProvider: 'google_meet', // Default video provider
     meetingAccess: 'open', // open, restricted, approval-required
     allowRecording: false,
     requirePassword: false,
@@ -395,51 +397,21 @@ const Appointments = () => {
     async (data) => {
       const { products, timeslotId, ...appointmentData } = data;
       
-      // Start a transaction for appointment + products
-      const { data: appointment, error: appointmentError } = await supabase
-        .from('appointments')
-        .insert({
-          timeslot_id: timeslotId,
-          doctor_id: selectedTimeslot.doctor.id,
-          pharma_rep_id: user.id,
-          purpose: appointmentData.purpose,
-          notes: appointmentData.notes,
-          meeting_type: appointmentData.meetingType,
-          status: 'scheduled'
-        })
-        .select()
-        .single();
+      // Call backend API to create appointment with video link generation
+      const appointmentPayload = {
+        timeslotId,
+        purpose: appointmentData.purpose,
+        notes: appointmentData.notes,
+        meetingType: appointmentData.meetingType,
+        videoProvider: appointmentData.videoProvider,
+        meetingAccess: appointmentData.meetingAccess,
+        allowRecording: appointmentData.allowRecording,
+        requirePassword: appointmentData.requirePassword,
+        products: products || []
+      };
       
-      if (appointmentError) throw appointmentError;
-      
-      // Insert products if any
-      if (products && products.length > 0) {
-        const productsToInsert = products.map(product => ({
-          appointment_id: appointment.id,
-          name: product.name || product,
-          category: product.category || 'other',
-          description: product.description || null
-        }));
-        
-        const { error: productsError } = await supabase
-          .from('appointment_products')
-          .insert(productsToInsert);
-        
-        if (productsError) throw productsError;
-      }
-      
-      // Update timeslot current_bookings
-      const { error: updateError } = await supabase
-        .from('timeslots')
-        .update({ 
-          current_bookings: selectedTimeslot.current_bookings + 1,
-          status: selectedTimeslot.current_bookings + 1 >= selectedTimeslot.max_bookings ? 'booked' : 'available'
-        })
-        .eq('id', timeslotId);
-      
-      if (updateError) throw updateError;
-      
-      return appointment;
+      const response = await appointmentAPI.create(appointmentPayload);
+      return response.appointment;
     },
     {
       onSuccess: () => {
@@ -460,72 +432,8 @@ const Appointments = () => {
   // Cancel appointment mutation
   const cancelMutation = useMutation(
     async ({ id, reason }) => {
-      // Get appointment details first to update timeslot and send notifications
-      const { data: appointment, error: getError } = await supabase
-        .from('appointments')
-        .select(`
-          *,
-          timeslot:timeslots(*),
-          doctor:users!doctor_id(id, first_name, last_name, email),
-          pharma_rep:users!pharma_rep_id(id, first_name, last_name, email, company_name)
-        `)
-        .eq('id', id)
-        .single();
-      
-      if (getError) throw getError;
-      
-      // Update appointment status and cancellation details
-      const { error: updateError } = await supabase
-        .from('appointments')
-        .update({ 
-          status: 'cancelled',
-          cancellation_reason: reason,
-          cancelled_by_id: user.id,
-          cancelled_at: new Date().toISOString()
-        })
-        .eq('id', id);
-      
-      if (updateError) throw updateError;
-      
-      // Update timeslot availability
-      const newBookingCount = Math.max(0, appointment.timeslot.current_bookings - 1);
-      const { error: timeslotError } = await supabase
-        .from('timeslots')
-        .update({
-          current_bookings: newBookingCount,
-          status: newBookingCount < appointment.timeslot.max_bookings ? 'available' : 'booked'
-        })
-        .eq('id', appointment.timeslot_id);
-      
-      if (timeslotError) throw timeslotError;
-      
-      // Create notification for the other party
-      const otherParty = user.role === 'doctor' ? appointment.pharma_rep : appointment.doctor;
-      const cancellerName = user.role === 'doctor' 
-        ? `Dr. ${user.first_name} ${user.last_name}`
-        : `${user.first_name} ${user.last_name}`;
-      
-      const { error: notificationError } = await supabase
-        .from('notifications')
-        .insert({
-          recipient_id: otherParty.id,
-          type: 'appointment-cancelled',
-          title: 'Appointment Cancelled',
-          message: `Your appointment on ${dayjs(appointment.timeslot.date).format('MMMM D, YYYY')} at ${appointment.timeslot.start_time} has been cancelled by ${cancellerName}.`,
-          data: {
-            appointment_id: appointment.id,
-            cancelled_by: user.role,
-            cancellation_reason: reason,
-            appointment_date: appointment.timeslot.date,
-            appointment_time: appointment.timeslot.start_time,
-            link: '/appointments'
-          },
-          priority: 'medium'
-        });
-      
-      if (notificationError) console.error('Failed to create notification:', notificationError);
-      
-      return appointment;
+      const response = await appointmentAPI.cancel(id, reason);
+      return response;
     },
     {
       onSuccess: () => {
@@ -551,17 +459,8 @@ const Appointments = () => {
     async (appointmentId) => {
       setProcessingAppointment(appointmentId);
       
-      const { error } = await supabase
-        .from('appointments')
-        .update({ 
-          status: 'confirmed',
-          confirmed_at: new Date().toISOString()
-        })
-        .eq('id', appointmentId);
-      
-      if (error) throw error;
-      
-      return appointmentId;
+      const response = await appointmentAPI.confirm(appointmentId);
+      return response;
     },
     {
       onSuccess: () => {
@@ -596,7 +495,7 @@ const Appointments = () => {
       products: [],
       notes: '',
       meetingType: 'in-person',
-      videoProvider: 'google-meet',
+      videoProvider: 'google_meet',
       meetingAccess: 'open',
       allowRecording: false,
       requirePassword: false,
@@ -935,6 +834,20 @@ const Appointments = () => {
                             <Typography variant="caption">
                               {appointment.meeting_type.charAt(0).toUpperCase() + appointment.meeting_type.slice(1)}
                             </Typography>
+                            {/* Show Google Meet link button for virtual meetings */}
+                            {appointment.meeting_type === 'virtual' && appointment.meeting_link && (
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                startIcon={<VideoIcon />}
+                                href={appointment.meeting_link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                sx={{ ml: 1, fontSize: '0.75rem', padding: '2px 8px' }}
+                              >
+                                Join Meeting
+                              </Button>
+                            )}
                           </Box>
                         </Box>
                       }
@@ -1094,18 +1007,21 @@ const Appointments = () => {
                     label="Video Provider"
                     onChange={(e) => setBookingForm({ ...bookingForm, videoProvider: e.target.value })}
                   >
-                    <MenuItem value="google-meet">
+                    <MenuItem value="google_meet">
                       <Box display="flex" alignItems="center" gap={1}>
                         <VideoIcon color="primary" />
                         Google Meet
                       </Box>
                     </MenuItem>
-                    <MenuItem value="microsoft-teams">
+                    {/* 
+                    DISABLED: Microsoft Teams requires admin consent for multi-tenant SaaS
+                    <MenuItem value="microsoft_teams">
                       <Box display="flex" alignItems="center" gap={1}>
                         <VideoIcon color="primary" />
                         Microsoft Teams
                       </Box>
                     </MenuItem>
+                    */}
                     <MenuItem value="zoom">
                       <Box display="flex" alignItems="center" gap={1}>
                         <VideoIcon color="primary" />
@@ -1240,6 +1156,38 @@ const Appointments = () => {
                   {selectedAppointment.meeting_type.charAt(0).toUpperCase() + selectedAppointment.meeting_type.slice(1)}
                 </Typography>
               </Box>
+              
+              {/* Show video meeting link if it's a virtual meeting */}
+              {selectedAppointment.meeting_type === 'virtual' && selectedAppointment.meeting_link && (
+                <>
+                  <Typography variant="subtitle2" gutterBottom>Meeting Link</Typography>
+                  <Box display="flex" alignItems="center" gap={1} mb={2}>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      startIcon={<VideoIcon />}
+                      href={selectedAppointment.meeting_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      sx={{ mr: 1 }}
+                    >
+                      {/* DISABLED: Teams support removed for multi-tenant SaaS */
+                       selectedAppointment.video_provider === 'zoom' ? 'Join Zoom Meeting' : 
+                       'Join Google Meet'}
+                    </Button>
+                    <IconButton
+                      size="small"
+                      onClick={() => navigator.clipboard.writeText(selectedAppointment.meeting_link)}
+                      title="Copy meeting link"
+                    >
+                      <ContentCopyIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Video Provider: {selectedAppointment.video_provider?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown'}
+                  </Typography>
+                </>
+              )}
               
               {selectedAppointment.notes && (
                 <>

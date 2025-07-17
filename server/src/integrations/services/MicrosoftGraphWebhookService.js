@@ -1,7 +1,7 @@
-﻿import { AuditLogger } from './AuditLogger.js';
-import { RateLimitManager } from './RateLimitManager.js';
-import { MicrosoftOAuthProvider } from '../providers/microsoft/MicrosoftOAuthProvider.js';
-import { OutlookCalendarSyncService } from './OutlookCalendarSyncService.js';
+﻿import AuditLogger from './AuditLogger.js';
+import RateLimitManager from './RateLimitManager.js';
+import MicrosoftOAuthProvider from '../providers/microsoft/MicrosoftOAuthProvider.js';
+import OutlookCalendarSyncService from './OutlookCalendarSyncService.js';
 import crypto from 'crypto';
 
 /**
@@ -11,6 +11,7 @@ import crypto from 'crypto';
  */
 export class MicrosoftGraphWebhookService {
   constructor() {
+    console.log('🔵 [MICROSOFT-WEBHOOK-DEBUG] MicrosoftGraphWebhookService constructor called');
     this.auditLogger = new AuditLogger('GraphWebhookService');
     this.rateLimiter = new RateLimitManager({
       requests: 1000,
@@ -32,6 +33,8 @@ export class MicrosoftGraphWebhookService {
     // Webhook validation and security
     this.clientStates = new Map();
     this.validationTokens = new Map();
+    
+    console.log('✅ [MICROSOFT-WEBHOOK-DEBUG] MicrosoftGraphWebhookService initialized');
   }
 
   /**
@@ -42,7 +45,7 @@ export class MicrosoftGraphWebhookService {
    */
   async createCalendarSubscription(accessToken, subscriptionData) {
     try {
-      await this.rateLimiter.checkLimit('create_subscription');
+              await this.rateLimiter.checkRateLimit('microsoft', null, 'create_subscription');
       
       this.auditLogger.log('info', 'Creating calendar webhook subscription', {
         userId: subscriptionData.userId,
@@ -137,7 +140,7 @@ export class MicrosoftGraphWebhookService {
    */
   async renewSubscription(subscriptionId, accessToken, newExpirationDateTime = null) {
     try {
-      await this.rateLimiter.checkLimit('renew_subscription');
+              await this.rateLimiter.checkRateLimit('microsoft', null, 'renew_subscription');
 
       const subscription = this.activeSubscriptions.get(subscriptionId);
       if (!subscription) {
@@ -193,7 +196,7 @@ export class MicrosoftGraphWebhookService {
    */
   async deleteSubscription(subscriptionId, accessToken) {
     try {
-      await this.rateLimiter.checkLimit('delete_subscription');
+              await this.rateLimiter.checkRateLimit('microsoft', null, 'delete_subscription');
 
       const response = await fetch(`${this.graphUrl}/subscriptions/${subscriptionId}`, {
         method: 'DELETE',
@@ -401,23 +404,38 @@ export class MicrosoftGraphWebhookService {
    */
   async handleCalendarEventCreated(eventData, userId, accessToken) {
     try {
+      console.log('🔵 [MICROSOFT-WEBHOOK-DEBUG] handleCalendarEventCreated called:', {
+        userId,
+        eventId: eventData.id,
+        subject: eventData.subject,
+        hasCategories: !!eventData.categories
+      });
+
       // Check if this event was created by PharmaDOC (to avoid sync loops)
       if (eventData.categories && eventData.categories.includes('PharmaDOC')) {
+        console.log('⚠️ [MICROSOFT-WEBHOOK-DEBUG] Ignoring PharmaDOC managed event:', eventData.id);
         return { action: 'ignored', reason: 'PharmaDOC managed event' };
       }
 
       // Fetch full event details if we only have basic data
       let fullEventData = eventData;
       if (!eventData.body || !eventData.attendees) {
+        console.log('🔵 [MICROSOFT-WEBHOOK-DEBUG] Fetching full event details for:', eventData.id);
         fullEventData = await this.fetchEventDetails(eventData.id, accessToken);
+        console.log('🔵 [MICROSOFT-WEBHOOK-DEBUG] Full event details fetched:', {
+          hasBody: !!fullEventData.body,
+          attendeesCount: fullEventData.attendees?.length || 0
+        });
       }
 
       // Trigger sync for this specific event
+      console.log('🔵 [MICROSOFT-WEBHOOK-DEBUG] Triggering sync for event:', eventData.id);
       const syncResult = await this.syncService.syncEventsFromOutlook(
         userId,
         [fullEventData],
         { enableConflictResolution: true }
       );
+      console.log('🔵 [MICROSOFT-WEBHOOK-DEBUG] Sync completed:', syncResult);
 
       this.auditLogger.log('info', 'Calendar event created and synced', {
         userId,
@@ -425,12 +443,14 @@ export class MicrosoftGraphWebhookService {
         syncResult
       });
 
+      console.log('✅ [MICROSOFT-WEBHOOK-DEBUG] Calendar event created and synced successfully');
       return {
         action: 'synced',
         eventId: eventData.id,
         syncResult
       };
     } catch (error) {
+      console.error('❌ [MICROSOFT-WEBHOOK-DEBUG] Failed to handle calendar event created:', error);
       this.auditLogger.log('error', 'Failed to handle calendar event created', {
         userId,
         eventId: eventData.id,

@@ -3,8 +3,8 @@
  * Handles comprehensive timezone conversion and management for global users
  */
 
-const { createClient } = require('@supabase/supabase-js');
-const AuditLogger = require('./AuditLogger');
+import { createClient } from '@supabase/supabase-js';
+import AuditLogger from './AuditLogger.js';
 
 class TimezoneService {
     constructor() {
@@ -644,11 +644,11 @@ class TimezoneService {
      * Get timezone from offset
      */
     getTimezoneFromOffset(offsetMinutes) {
-        // This is a simplified mapping - in production, you'd use a more comprehensive database
+        // This is a simplified mapping in production you would use a more comprehensive database
         const offsetMap = {
             0: 'UTC',
-            -300: 'America/New_York', // EST
-            -480: 'America/Los_Angeles', // PST
+            '-300': 'America/New_York', // EST
+            '-480': 'America/Los_Angeles', // PST
             60: 'Europe/London', // GMT+1
             120: 'Europe/Paris', // CET
             330: 'Asia/Kolkata', // IST
@@ -698,4 +698,4 @@ class TimezoneService {
     }
 }
 
-module.exports = TimezoneService;
+export default TimezoneService;

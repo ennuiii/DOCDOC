@@ -3,10 +3,10 @@
  * Comprehensive service for managing Zoom meetings
  */
 
-const ZoomOAuthProvider = require('../providers/zoom/ZoomOAuthProvider');
-const AuditLogger = require('./AuditLogger');
-const TimezoneService = require('./TimezoneService');
-const { createClient } = require('@supabase/supabase-js');
+import ZoomOAuthProvider from '../providers/zoom/ZoomOAuthProvider.js';
+import AuditLogger from './AuditLogger.js';
+import TimezoneService from './TimezoneService.js';
+import { createClient } from '@supabase/supabase-js';
 
 class ZoomMeetingService {
   constructor() {
@@ -77,6 +77,15 @@ class ZoomMeetingService {
 
       const meeting = await this.zoomProvider.createMeeting(accessToken, meetingData);
       
+      // DEBUG: Log the meeting response to see what we're getting
+      console.log('🔍 [ZOOM DEBUG] Meeting creation response:', {
+        id: meeting.id,
+        join_url: meeting.join_url,
+        joinUrl: meeting.joinUrl,
+        password: meeting.password,
+        topic: meeting.topic
+      });
+      
       // Store meeting information in database
       await this.storeMeetingData(appointment.id, meeting, accessToken);
       
@@ -87,13 +96,14 @@ class ZoomMeetingService {
         appointmentId: appointment.id,
         meetingId: meeting.id,
         topic: meeting.topic,
+        joinUrl: meeting.join_url, // Use correct property name
         securityProfile: this.determineSecurityProfile(appointment)
       });
 
       return {
         success: true,
         meeting,
-        joinUrl: meeting.joinUrl,
+        joinUrl: meeting.join_url, // Fix: Use snake_case property
         meetingId: meeting.id,
         password: meeting.password
       };
@@ -137,7 +147,7 @@ class ZoomMeetingService {
       return {
         success: true,
         meeting: updatedMeeting,
-        joinUrl: updatedMeeting.joinUrl,
+        joinUrl: updatedMeeting.join_url, // Fix: Use snake_case property
         password: updatedMeeting.password
       };
     } catch (error) {
@@ -625,10 +635,17 @@ END:VCALENDAR`;
    */
   async storeMeetingData(appointmentId, meeting, accessToken) {
     try {
-      await this.supabase
+      console.log('🔍 [ZOOM DEBUG] Storing meeting data:', {
+        appointmentId,
+        meetingId: meeting.id,
+        joinUrl: meeting.join_url,
+        password: meeting.password
+      });
+      
+      const updateResult = await this.supabase
         .from('appointments')
         .update({
-          meeting_link: meeting.joinUrl,
+          meeting_link: meeting.join_url, // Fix: Use snake_case property
           meeting_id: meeting.id,
           meeting_password: meeting.password,
           video_provider: 'zoom',
@@ -636,14 +653,17 @@ END:VCALENDAR`;
             zoom: {
               meetingId: meeting.id,
               uuid: meeting.uuid,
-              hostId: meeting.hostId,
-              createdAt: meeting.createdAt,
+              hostId: meeting.host_id, // Fix: Use snake_case
+              createdAt: meeting.created_at, // Fix: Use snake_case
               settings: meeting.settings
             }
           }
         })
         .eq('id', appointmentId);
+        
+      console.log('🔍 [ZOOM DEBUG] Database update result:', updateResult);
     } catch (error) {
+      console.error('❌ [ZOOM ERROR] Failed to store meeting data:', error);
       this.auditLogger.logError('zoom_meeting_storage_failed', error, {
         appointmentId,
         meetingId: meeting.id
@@ -662,13 +682,13 @@ END:VCALENDAR`;
       await this.supabase
         .from('appointments')
         .update({
-          meeting_link: meeting.joinUrl,
+          meeting_link: meeting.join_url, // Fix: Use snake_case property
           meeting_password: meeting.password,
           integration_data: {
             zoom: {
               meetingId: meeting.id,
               uuid: meeting.uuid,
-              hostId: meeting.hostId,
+              hostId: meeting.host_id, // Fix: Use snake_case
               updatedAt: new Date().toISOString(),
               settings: meeting.settings
             }
@@ -749,4 +769,4 @@ END:VCALENDAR`;
   }
 }
 
-module.exports = ZoomMeetingService; 
+export default ZoomMeetingService; 

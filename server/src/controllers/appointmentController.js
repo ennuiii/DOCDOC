@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import NotificationService from '../services/notificationService.js';
 import { VideoLinkGenerationService } from '../integrations/services/VideoLinkGenerationService.js';
+import AutoSyncService from '../services/autoSyncService.js';
 
 // Get appointments with filters
 export const getAppointments = async (req, res) => {
@@ -228,7 +229,7 @@ export const createAppointment = async (req, res) => {
       return res.status(400).json({ error: 'Timeslot is not available for booking' });
     }
     
-    // Create appointment
+    // Create appointment with video provider
     const { data: appointment, error: appointmentError } = await supabase
       .from('appointments')
       .insert({
@@ -238,6 +239,7 @@ export const createAppointment = async (req, res) => {
         purpose,
         notes,
         meeting_type: meetingType || 'in-person',
+        video_provider: meetingType === 'virtual' ? (videoProvider || 'google_meet') : 'in_person',
         status: 'scheduled'
       })
       .select(`
@@ -260,7 +262,7 @@ export const createAppointment = async (req, res) => {
         const videoLinkService = new VideoLinkGenerationService();
         const bookingForm = {
           meetingType,
-          videoProvider: videoProvider || 'google-meet',
+          videoProvider: videoProvider || 'google_meet',
           meetingAccess: meetingAccess || 'open',
           allowRecording: allowRecording || false,
           requirePassword: requirePassword || false,
@@ -311,23 +313,14 @@ export const createAppointment = async (req, res) => {
       ? `${req.user.first_name} ${req.user.last_name} from ${req.user.company_name} has booked a virtual appointment for ${timeslot.date} at ${timeslot.start_time}. Video meeting link has been generated.`
       : `${req.user.first_name} ${req.user.last_name} from ${req.user.company_name} has booked an appointment for ${timeslot.date} at ${timeslot.start_time}.`;
       
-    await NotificationService.createNotification({
-      recipientId: timeslot.doctor_id,
-      title: 'New Appointment Booked',
-      message: notificationMessage,
-      type: 'appointment_created',
-      priority: 'medium',
-      data: {
-        appointmentId: appointment.id,
-        pharmaRep: `${req.user.first_name} ${req.user.last_name}`,
-        company: req.user.company_name,
-        date: timeslot.date,
-        time: timeslot.start_time,
-        purpose,
-        meetingType,
-        videoMeeting: videoMeetingResult?.success || false,
-        link: `/appointments`
-      }
+    // Create notification using the proper method
+    await NotificationService.notifyAppointmentScheduled({
+      doctorId: timeslot.doctor_id,
+      pharmaRepName: `${req.user.first_name} ${req.user.last_name}`,
+      companyName: req.user.company_name,
+      date: timeslot.date,
+      startTime: timeslot.start_time,
+      appointmentId: appointment.id
     });
 
     // Prepare response
@@ -338,6 +331,10 @@ export const createAppointment = async (req, res) => {
 
     // Include video meeting information if successful
     if (videoMeetingResult?.success) {
+      // Update the appointment object with the generated meeting link for response
+      appointment.meeting_link = videoMeetingResult.joinUrl;
+      appointment.video_provider = videoMeetingResult.provider;
+      
       response.videoMeeting = {
         provider: videoMeetingResult.provider,
         joinUrl: videoMeetingResult.joinUrl,
@@ -347,6 +344,10 @@ export const createAppointment = async (req, res) => {
     } else if (meetingType === 'virtual' && videoMeetingResult && !videoMeetingResult.success) {
       response.warning = `Appointment created but video link generation failed: ${videoMeetingResult.error}`;
     }
+
+    // Trigger auto-sync for both users (appointment creation)
+    const autoSyncService = new AutoSyncService();
+    autoSyncService.triggerAppointmentSync(appointment.id, 'created');
     
     res.status(201).json(response);
   } catch (error) {
@@ -461,7 +462,7 @@ export const cancelAppointment = async (req, res) => {
       .update({
         status: 'cancelled',
         cancelled_at: new Date().toISOString(),
-        cancelled_by: req.user.id,
+        cancelled_by_id: req.user.id,
         cancellation_reason: reason
       })
       .eq('id', id);
@@ -486,21 +487,22 @@ export const cancelAppointment = async (req, res) => {
       ? `Dr. ${req.user.first_name} ${req.user.last_name}`
       : `${req.user.first_name} ${req.user.last_name}`;
     
-    await NotificationService.createNotification({
-      recipientId,
-      title: 'Appointment Cancelled',
-      message: `${senderName} has cancelled the appointment scheduled for ${appointment.timeslot.date} at ${appointment.timeslot.start_time}.${reason ? ` Reason: ${reason}` : ''}`,
-      type: 'appointment_cancelled',
-      priority: 'high',
-      data: {
-        appointmentId: id,
-        cancelledBy: senderName,
+    // Create notification using the proper method
+    await NotificationService.notifyAppointmentCancelled(
+      {
+        doctorId: appointment.doctor_id,
+        pharmaRepId: appointment.pharma_rep_id,
         date: appointment.timeslot.date,
-        time: appointment.timeslot.start_time,
-        reason,
-        link: `/appointments`
-      }
-    });
+        startTime: appointment.timeslot.start_time,
+        appointmentId: id
+      },
+      req.user.id,
+      reason || 'No reason provided'
+    );
+
+    // Trigger auto-sync for both users (appointment cancellation)
+    const autoSyncService = new AutoSyncService();
+    autoSyncService.triggerAppointmentSync(appointment.id, 'cancelled');
     
     res.json({
       message: 'Appointment cancelled successfully'
@@ -552,7 +554,7 @@ export const confirmAppointment = async (req, res) => {
       .update({
         status: 'confirmed',
         confirmed_at: new Date().toISOString(),
-        confirmed_by: req.user.id
+        confirmed_by_id: req.user.id
       })
       .eq('id', id);
     
@@ -561,20 +563,17 @@ export const confirmAppointment = async (req, res) => {
     }
     
     // Create notification for pharma rep
-    await NotificationService.createNotification({
-      recipientId: appointment.pharma_rep_id,
-      title: 'Appointment Confirmed',
-      message: `Dr. ${appointment.doctor.first_name} ${appointment.doctor.last_name} has confirmed your appointment for ${appointment.timeslot.date} at ${appointment.timeslot.start_time}.`,
-      type: 'appointment_confirmed',
-      priority: 'medium',
-      data: {
-        appointmentId: id,
-        doctorName: `Dr. ${appointment.doctor.first_name} ${appointment.doctor.last_name}`,
-        date: appointment.timeslot.date,
-        time: appointment.timeslot.start_time,
-        link: `/appointments`
-      }
+    await NotificationService.notifyAppointmentConfirmed({
+      doctorName: appointment.doctor.last_name,
+      pharmaRepId: appointment.pharma_rep_id,
+      date: appointment.timeslot.date,
+      startTime: appointment.timeslot.start_time,
+      appointmentId: id
     });
+
+    // Trigger auto-sync for both users (appointment confirmation)
+    const autoSyncService = new AutoSyncService();
+    autoSyncService.triggerAppointmentSync(appointment.id, 'confirmed');
     
     res.json({
       message: 'Appointment confirmed successfully',
@@ -630,7 +629,7 @@ export const completeAppointment = async (req, res) => {
       .update({
         status: 'completed',
         completed_at: new Date().toISOString(),
-        completed_by: req.user.id
+        completed_by_id: req.user.id
       })
       .eq('id', id);
     
@@ -644,20 +643,18 @@ export const completeAppointment = async (req, res) => {
       ? `Dr. ${req.user.first_name} ${req.user.last_name}`
       : `${req.user.first_name} ${req.user.last_name}`;
     
-    await NotificationService.createNotification({
-      recipientId,
-      title: 'Appointment Completed',
-      message: `${senderName} has marked the appointment for ${appointment.timeslot.date} at ${appointment.timeslot.start_time} as completed.`,
-      type: 'appointment_completed',
-      priority: 'low',
-      data: {
-        appointmentId: id,
-        completedBy: senderName,
-        date: appointment.timeslot.date,
-        time: appointment.timeslot.start_time,
-        link: `/appointments`
-      }
+    // Create notification using the proper method
+    await NotificationService.notifyAppointmentCompleted({
+      doctorName: appointment.doctor.last_name,
+      pharmaRepId: appointment.pharma_rep_id,
+      date: appointment.timeslot.date,
+      startTime: appointment.timeslot.start_time,
+      appointmentId: id
     });
+    
+    // Trigger auto-sync for both users (appointment completion)
+    const autoSyncService = new AutoSyncService();
+    autoSyncService.triggerAppointmentSync(appointment.id, 'completed');
     
     res.json({
       message: 'Appointment marked as completed'
@@ -844,7 +841,7 @@ export const addFeedback = async (req, res) => {
         feedback: {
           rating,
           comment,
-          submitted_by: req.user.id,
+          submitted_by_id: req.user.id,
           submitted_at: new Date().toISOString()
         }
       })

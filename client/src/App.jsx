@@ -6,6 +6,7 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import { SnackbarProvider } from 'notistack';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 
 import { AuthProvider } from './contexts/AuthContext';
 import Layout from './components/Layout';
@@ -71,83 +72,85 @@ function App() {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={theme}>
-        <LocalizationProvider dateAdapter={AdapterDayjs}>
-          <SnackbarProvider 
-            maxSnack={3}
-            autoHideDuration={2000}
-            anchorOrigin={{
-              vertical: 'top',
-              horizontal: 'right',
-            }}
-          >
-            <CssBaseline />
-            <AuthProvider>
-              <Router>
-                <Routes>
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/register" element={<Register />} />
-                  <Route path="/integrations/callback" element={<OAuthCallback />} />
-                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                  
-                  {/* Protected routes with Layout */}
-                  <Route path="/dashboard" element={
-                    <PrivateRoute>
-                      <Layout>
-                        <Dashboard />
-                      </Layout>
-                    </PrivateRoute>
-                  } />
-                  <Route path="/profile" element={
-                    <PrivateRoute>
-                      <Layout>
-                        <Profile />
-                      </Layout>
-                    </PrivateRoute>
-                  } />
-                  <Route path="/appointments" element={
-                    <PrivateRoute>
-                      <Layout>
-                        <Appointments />
-                      </Layout>
-                    </PrivateRoute>
-                  } />
-                  <Route path="/timeslots" element={
-                    <PrivateRoute>
-                      <Layout>
-                        <Timeslots />
-                      </Layout>
-                    </PrivateRoute>
-                  } />
-                  <Route path="/research" element={
-                    <PrivateRoute>
-                      <Layout>
-                        <Research />
-                      </Layout>
-                    </PrivateRoute>
-                  } />
-                  <Route path="/integrations" element={
-                    <PrivateRoute>
-                      <Layout>
-                        <Integrations />
-                      </Layout>
-                    </PrivateRoute>
-                  } />
-                  <Route path="*" element={
-                    <PrivateRoute>
-                      <Layout>
-                        <NotFound />
-                      </Layout>
-                    </PrivateRoute>
-                  } />
-                </Routes>
-              </Router>
-            </AuthProvider>
-          </SnackbarProvider>
-        </LocalizationProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <GoogleOAuthProvider clientId="82560942695-2qf526rnc30phkkm1rkja4oav690p7k5.apps.googleusercontent.com">
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider theme={theme}>
+          <LocalizationProvider dateAdapter={AdapterDayjs}>
+            <SnackbarProvider 
+              maxSnack={3}
+              autoHideDuration={2000}
+              anchorOrigin={{
+                vertical: 'top',
+                horizontal: 'right',
+              }}
+            >
+              <CssBaseline />
+              <AuthProvider>
+                <Router>
+                  <Routes>
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/register" element={<Register />} />
+                    <Route path="/integrations/callback" element={<OAuthCallback />} />
+                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                    
+                    {/* Protected routes with Layout */}
+                    <Route path="/dashboard" element={
+                      <PrivateRoute>
+                        <Layout>
+                          <Dashboard />
+                        </Layout>
+                      </PrivateRoute>
+                    } />
+                    <Route path="/profile" element={
+                      <PrivateRoute>
+                        <Layout>
+                          <Profile />
+                        </Layout>
+                      </PrivateRoute>
+                    } />
+                    <Route path="/appointments" element={
+                      <PrivateRoute>
+                        <Layout>
+                          <Appointments />
+                        </Layout>
+                      </PrivateRoute>
+                    } />
+                    <Route path="/timeslots" element={
+                      <PrivateRoute>
+                        <Layout>
+                          <Timeslots />
+                        </Layout>
+                      </PrivateRoute>
+                    } />
+                    <Route path="/research" element={
+                      <PrivateRoute>
+                        <Layout>
+                          <Research />
+                        </Layout>
+                      </PrivateRoute>
+                    } />
+                    <Route path="/integrations" element={
+                      <PrivateRoute>
+                        <Layout>
+                          <Integrations />
+                        </Layout>
+                      </PrivateRoute>
+                    } />
+                    <Route path="*" element={
+                      <PrivateRoute>
+                        <Layout>
+                          <NotFound />
+                        </Layout>
+                      </PrivateRoute>
+                    } />
+                  </Routes>
+                </Router>
+              </AuthProvider>
+            </SnackbarProvider>
+          </LocalizationProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </GoogleOAuthProvider>
   );
 }
 

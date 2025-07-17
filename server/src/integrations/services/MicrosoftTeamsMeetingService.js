@@ -1,7 +1,7 @@
-import { AuditLogger } from './AuditLogger.js';
-import { RateLimitManager } from './RateLimitManager.js';
-import { TimezoneService } from './TimezoneService.js';
-import { MicrosoftOAuthProvider } from '../providers/microsoft/MicrosoftOAuthProvider.js';
+import AuditLogger from './AuditLogger.js';
+import RateLimitManager from './RateLimitManager.js';
+import TimezoneService from './TimezoneService.js';
+import MicrosoftOAuthProvider from '../providers/microsoft/MicrosoftOAuthProvider.js';
 
 /**
  * Microsoft Teams Meeting Integration Service
@@ -31,17 +31,38 @@ export class MicrosoftTeamsMeetingService {
 
   /**
    * Create a Teams meeting
+   * Enhanced with multi-tenant support and permission validation
    * @param {string} accessToken - Microsoft access token
    * @param {Object} meetingData - Meeting configuration
    * @returns {Object} Created meeting details
    */
   async createMeeting(accessToken, meetingData) {
     try {
-      await this.rateLimiter.checkLimit('create_meeting');
+      await this.rateLimiter.checkRateLimit('microsoft', null, 'create_meeting');
       
+      // Validate OnlineMeetings permissions for multi-tenant scenario
+      this.auditLogger.log('info', 'Validating OnlineMeetings permissions before creating meeting');
+      const permissionValidation = await this.oauthProvider.validateOnlineMeetingsPermissions(accessToken);
+      
+      if (!permissionValidation.canCreateMeetings) {
+        const errorMessage = 'OnlineMeetings permission validation failed. Cannot create Teams meeting.';
+        this.auditLogger.log('error', errorMessage, {
+          tenantInfo: permissionValidation.tenantInfo,
+          status: permissionValidation.status,
+          recommendations: permissionValidation.recommendations
+        });
+        
+        const error = new Error(errorMessage);
+        error.permissionValidation = permissionValidation;
+        error.isMultiTenantIssue = true;
+        throw error;
+      }
+
       this.auditLogger.log('info', 'Creating Teams meeting', {
         subject: meetingData.subject,
-        duration: meetingData.duration
+        duration: meetingData.duration,
+        tenantId: permissionValidation.tenantInfo.tenantId,
+        tenantName: permissionValidation.tenantInfo.tenantDisplayName
       });
 
       const {
@@ -56,9 +77,12 @@ export class MicrosoftTeamsMeetingService {
         lobbyBypassSettings = {}
       } = meetingData;
 
-      // Convert times to ISO format
-      const startDateTime = await this.timezoneService.convertToUtc(startTime, timezone);
-      const endDateTime = await this.timezoneService.convertToUtc(endTime, timezone);
+      // Convert times to ISO format using the available convertTimezone method
+      const startConversion = await this.timezoneService.convertTimezone(startTime, timezone, 'UTC');
+      const endConversion = await this.timezoneService.convertTimezone(endTime, timezone, 'UTC');
+      
+      const startDateTime = new Date(startConversion.converted.datetime);
+      const endDateTime = new Date(endConversion.converted.datetime);
 
       const meetingRequest = {
         subject: subject,
@@ -85,6 +109,13 @@ export class MicrosoftTeamsMeetingService {
         }
       };
 
+      // Debug logging
+      console.log('🔵 [TEAMS-DEBUG] About to send request to Microsoft Graph API');
+      console.log('🔵 [TEAMS-DEBUG] Endpoint:', `${this.graphUrl}/me/onlineMeetings`);
+      console.log('🔵 [TEAMS-DEBUG] Request body:', JSON.stringify(meetingRequest, null, 2));
+      console.log('🔵 [TEAMS-DEBUG] Access token length:', accessToken ? accessToken.length : 0);
+      console.log('🔵 [TEAMS-DEBUG] Access token preview:', accessToken ? accessToken.substring(0, 50) + '...' : 'NO TOKEN');
+
       const response = await fetch(`${this.graphUrl}/me/onlineMeetings`, {
         method: 'POST',
         headers: {
@@ -94,8 +125,22 @@ export class MicrosoftTeamsMeetingService {
         body: JSON.stringify(meetingRequest)
       });
 
+      console.log('🔵 [TEAMS-DEBUG] Response status:', response.status);
+      console.log('🔵 [TEAMS-DEBUG] Response headers:', Object.fromEntries(response.headers.entries()));
+      
       if (!response.ok) {
-        await this.oauthProvider.handleApiError(response, 'Create Teams meeting');
+        // Get the actual error response before handling it
+        const errorText = await response.text();
+        console.log('❌ [TEAMS-DEBUG] Error response body:', errorText);
+        
+        // Re-create response for error handler (since we consumed the body)
+        const errorResponse = new Response(errorText, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers
+        });
+        
+        await this.oauthProvider.handleApiError(errorResponse, 'Create Teams meeting');
       }
 
       const meeting = await response.json();
@@ -127,7 +172,7 @@ export class MicrosoftTeamsMeetingService {
    */
   async getMeeting(accessToken, meetingId) {
     try {
-      await this.rateLimiter.checkLimit('get_meeting');
+              await this.rateLimiter.checkRateLimit('microsoft', null, 'get_meeting');
 
       // Check cache first
       const cachedMeeting = this.getCachedMeeting(meetingId);
@@ -175,7 +220,7 @@ export class MicrosoftTeamsMeetingService {
    */
   async updateMeeting(accessToken, meetingId, updateData) {
     try {
-      await this.rateLimiter.checkLimit('update_meeting');
+              await this.rateLimiter.checkRateLimit('microsoft', null, 'update_meeting');
 
       this.auditLogger.log('info', 'Updating Teams meeting', {
         meetingId,
@@ -266,7 +311,7 @@ export class MicrosoftTeamsMeetingService {
    */
   async deleteMeeting(accessToken, meetingId) {
     try {
-      await this.rateLimiter.checkLimit('delete_meeting');
+              await this.rateLimiter.checkRateLimit('microsoft', null, 'delete_meeting');
 
       const response = await fetch(`${this.graphUrl}/me/onlineMeetings/${meetingId}`, {
         method: 'DELETE',
@@ -300,7 +345,7 @@ export class MicrosoftTeamsMeetingService {
    */
   async listMeetings(accessToken, options = {}) {
     try {
-      await this.rateLimiter.checkLimit('list_meetings');
+              await this.rateLimiter.checkRateLimit('microsoft', null, 'list_meetings');
 
       const {
         timeMin,
@@ -681,7 +726,7 @@ END:VCALENDAR`;
    */
   async getMeetingAnalytics(accessToken, meetingId) {
     try {
-      await this.rateLimiter.checkLimit('meeting_analytics');
+              await this.rateLimiter.checkRateLimit('microsoft', null, 'meeting_analytics');
 
       // Note: Meeting analytics require additional Graph API permissions
       // This is a placeholder for future implementation
